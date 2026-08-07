@@ -1,0 +1,66 @@
+# Node / Frontend / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.hypothesis/
+
+# Python Virtual Environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Specific Data / Cache
+cache/
+traffic_copilot/cache/
+god_please/cache/
+*.log
+
+# OS / Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.env
+
+# Documents
+*.pdf
+*.ppt
+*.pptx
+
+# Markdown except README
+*.md
+!README.md
