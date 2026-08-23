@@ -7,6 +7,7 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 import pandas as pd
+import redis
 
 from router import find_diversion_routes, build_live_graph
 from auth import save_incident, add_incident_log
@@ -14,6 +15,18 @@ from auth import save_incident, add_incident_log
 load_dotenv(override=True)
 GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound-mini")
 _groq_key = (os.getenv("GROQ_API_KEY") or "").strip()
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_AI_TTL = int(os.getenv("REDIS_AI_TTL", "86400"))
+REDIS_ROUTE_TTL = int(os.getenv("REDIS_ROUTE_TTL", "86400"))
+
+try:
+    redis_pool = redis.ConnectionPool.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2.0)
+    redis_client = redis.Redis(connection_pool=redis_pool)
+except Exception as e:
+    print(f"[copilot] Failed to initialize Redis connection pool: {e}")
+    redis_client = None
+
 
 
 def _make_groq_client():
@@ -183,14 +196,57 @@ class IncidentCoPilot:
         self._latest_frame_df = None
         self._active_incident = None
         self._incident_start  = None
-        # Per-incident storage — keyed by incident id string
-        self._ai_per_incident:     dict = {}    # id -> parsed LLM output dict
-        self._routes_per_incident: dict = {}    # id -> list of route dicts
-        self._debug_per_incident:  dict = {}    # id -> list of debug log strings
+        # RAM fallback dictionaries when Redis is offline/unavailable
+        self._ai_fallback:         dict = {}
+        self._routes_fallback:     dict = {}
+        self._debug_per_incident:  dict = {}    # id -> list of debug log strings (RAM only)
         self.narrative_log    = []              # list of {time, narrative, routes}
         self._chat_history    = []
         self._lock            = threading.Lock()
         self._timer           = None
+
+    # Properties to maintain backwards compatibility with process-local RAM cache checks
+    @property
+    def _ai_per_incident(self) -> dict:
+        return self._ai_fallback
+
+    @property
+    def _routes_per_incident(self) -> dict:
+        return self._routes_fallback
+
+    # ── Redis Helpers ──────────────────────────────────────────────
+    def _redis_get(self, key: str) -> str | None:
+        if redis_client is not None:
+            try:
+                val = redis_client.get(key)
+                if val:
+                    print(f"[Redis] Cache hit for key {key}")
+                else:
+                    print(f"[Redis] Cache miss for key {key}")
+                return val
+            except Exception as e:
+                print(f"[Redis] Cache read FAILED for key {key}: {e}")
+        return None
+
+    def _redis_set(self, key: str, value: str, ttl: int) -> bool:
+        if redis_client is not None:
+            try:
+                redis_client.setex(key, ttl, value)
+                print(f"[Redis] Cache write SUCCESS for key {key}")
+                return True
+            except Exception as e:
+                print(f"[Redis] Cache write FAILED for key {key}: {e}")
+        return False
+
+    def _redis_delete(self, key: str) -> bool:
+        if redis_client is not None:
+            try:
+                redis_client.delete(key)
+                print(f"[Redis] Cache delete SUCCESS for key {key}")
+                return True
+            except Exception as e:
+                print(f"[Redis] Cache delete FAILED for key {key}: {e}")
+        return False
 
     # ── Public interface ───────────────────────────────────────────
 
@@ -256,27 +312,58 @@ class IncidentCoPilot:
 
     def resolve_incident(self, incident_id: str, seg_id: str):
         with self._lock:
-            self._routes_per_incident.pop(incident_id, None)
-            self._ai_per_incident.pop(incident_id, None)
+            self._redis_delete(f"margdarshak:routes:{incident_id}")
+            self._redis_delete(f"margdarshak:ai:{incident_id}")
+            self._routes_fallback.pop(incident_id, None)
+            self._ai_fallback.pop(incident_id, None)
             self._debug_per_incident.pop(incident_id, None)
 
     def get_last_ai(self, incident_id: str | None = None) -> dict | None:
         """Return AI output for a specific incident, or the active one if no id given."""
         with self._lock:
-            if incident_id:
-                return self._ai_per_incident.get(incident_id)
-            if self._ai_per_incident:
-                return list(self._ai_per_incident.values())[-1]
+            iid = incident_id
+            if not iid:
+                if self._active_incident:
+                    iid = self._active_incident["id"]
+
+            if iid:
+                # Try reading from Redis first
+                data = self._redis_get(f"margdarshak:ai:{iid}")
+                if data is not None:
+                    try:
+                        return json.loads(data)
+                    except Exception:
+                        pass
+                # Fallback to local RAM
+                return self._ai_fallback.get(iid)
+
+            if self._ai_fallback:
+                return list(self._ai_fallback.values())[-1]
             return None
 
     def get_diversion_coords(self, incident_id: str | None = None) -> list:
         """Returns polyline coords for the best cached diversion route."""
         with self._lock:
             iid = incident_id
-            if not iid and self._routes_per_incident:
-                iid = list(self._routes_per_incident.keys())[-1]
-            routes = list(self._routes_per_incident.get(iid, [])) if iid else []
-        return routes[0]["coords"] if routes else []
+            if not iid:
+                if self._active_incident:
+                    iid = self._active_incident["id"]
+                elif self._routes_fallback:
+                    iid = list(self._routes_fallback.keys())[-1]
+
+            if iid:
+                # Try reading from Redis first
+                data = self._redis_get(f"margdarshak:routes:{iid}")
+                if data is not None:
+                    try:
+                        routes = json.loads(data)
+                        return routes[0]["coords"] if routes else []
+                    except Exception:
+                        pass
+                # Fallback to local RAM
+                routes = self._routes_fallback.get(iid, [])
+                return routes[0]["coords"] if routes else []
+            return []
 
     def get_debug_log(self, incident_id: str | None = None) -> list[str]:
         """Returns the detailed routing/analysis process log for an incident."""
@@ -292,7 +379,7 @@ class IncidentCoPilot:
             incident  = self._active_incident
             # Get the AI output scoped to the active incident
             ai_output = (
-                self._ai_per_incident.get(incident["id"])
+                self.get_last_ai(incident["id"])
                 if incident else None
             )
             history   = list(self._chat_history)
@@ -361,8 +448,8 @@ class IncidentCoPilot:
                 return
 
             try:
-                dest_lat = float(incident.get("seg_end_lat") or incident.get("lat") or 23.240)
-                dest_lng = float(incident.get("seg_end_lng") or incident.get("lng") or 72.660)
+                dest_lat = float(incident["seg_end_lat"]) if incident.get("seg_end_lat") is not None else float(incident.get("lat") or 23.240)
+                dest_lng = float(incident["seg_end_lng"]) if incident.get("seg_end_lng") is not None else float(incident.get("lng") or 72.660)
                 
                 # If destination is identical to origin, use a default city center destination for detour
                 if abs(dest_lat - float(incident["lat"])) < 0.0001 and abs(dest_lng - float(incident["lng"])) < 0.0001:
@@ -394,8 +481,10 @@ class IncidentCoPilot:
                 add_incident_log(incident_id, f"A* routing failed to find path for {incident_id}")
 
             # Save routing results to cache immediately so frontend maps can render routes
+            routes_str = json.dumps(routes)
+            self._redis_set(f"margdarshak:routes:{incident_id}", routes_str, REDIS_ROUTE_TTL)
             with self._lock:
-                self._routes_per_incident[incident_id] = routes
+                self._routes_fallback[incident_id] = routes
                 ts = datetime.now().strftime("%H:%M:%S")
                 self._debug_per_incident[incident_id] = (
                     [f"[RUN]    Analysis at {ts}"] +
@@ -412,8 +501,10 @@ class IncidentCoPilot:
                     json_output=True,
                 )
                 ai_output = _parse_llm_response(llm_raw)
+                ai_output_str = json.dumps(ai_output)
+                self._redis_set(f"margdarshak:ai:{incident_id}", ai_output_str, REDIS_AI_TTL)
                 with self._lock:
-                    self._ai_per_incident[incident_id] = ai_output
+                    self._ai_fallback[incident_id] = ai_output
                     ts = datetime.now().strftime("%H:%M:%S")
                     llm_debug = [
                         f"[LLM]    Model: {GROQ_MODEL} | temp=0.15 | max_tokens=900",

@@ -129,6 +129,12 @@ if persisted_incidents:
     state["incidents"] = persisted_incidents
     state["inc_counter"] = max(int(i.get("id", "INC_000").split("_")[-1]) for i in persisted_incidents if i.get("id")) + 1
 
+def refresh_state_incidents():
+    refreshed = load_incidents()
+    with state_lock:
+        state["incidents"] = refreshed
+
+
 
 
 
@@ -362,40 +368,66 @@ def delete_admin_user(user_id: int, request: Request):
 
 
 def _trigger_voice_incident_from_text(text: str, channel: str):
+    import re
     known = list(STREET_METADATA.keys())
     extracted = copilot.parse_voice_report(text, known)
 
     street = (extracted.get("street_name") or "").lower()
     inc_type = extracted.get("type") or "ACCIDENT"
 
-    meta = STREET_METADATA.get(street)
-    if not meta:
-        for candidate in known:
-            if candidate in text.lower():
-                meta = STREET_METADATA[candidate]
-                break
-
-        if not meta:
-            fallback_row = None
-            if not df.empty:
-                fallback_row = df.sort_values(by=["severity", "speed"], ascending=[False, True]).iloc[0]
-
-            if fallback_row is None:
-                return {
-                    "error": f"Street '{street}' not found in Gandhinagar grid.",
-                    "extracted": extracted,
+    meta = None
+    # Try to extract segment number from text (e.g. "segment 14", "seg 30")
+    seg_match = re.search(r'(?:segment|seg)\s*#?\s*(\d+)', text, re.IGNORECASE)
+    if seg_match:
+        try:
+            seg_num = int(seg_match.group(1))
+            seg_id_target = f"SEG_{seg_num:04d}"
+            matching_seg = df[df["seg_id"] == seg_id_target]
+            if not matching_seg.empty:
+                rep = matching_seg.iloc[0]
+                meta = {
+                    "seg_id":        rep["seg_id"],
+                    "street_name":   rep["street_name"],
+                    "lat":           float(rep["lat"]),
+                    "lng":           float(rep["lng"]),
+                    "seg_start_lat": float(rep["seg_start_lat"]),
+                    "seg_start_lng": float(rep["seg_start_lng"]),
+                    "seg_end_lat":   float(rep["seg_end_lat"]),
+                    "seg_end_lng":   float(rep["seg_end_lng"]),
                 }
+                print(f"[Voice] Matched segment ID from text: {seg_id_target}")
+        except Exception as e:
+            print(f"[Voice] Segment parsing error: {e}")
 
-            meta = {
-                "seg_id": fallback_row["seg_id"],
-                "street_name": fallback_row["street_name"],
-                "lat": float(fallback_row["lat"]),
-                "lng": float(fallback_row["lng"]),
-                "seg_start_lat": float(fallback_row["seg_start_lat"]),
-                "seg_start_lng": float(fallback_row["seg_start_lng"]),
-                "seg_end_lat": float(fallback_row["seg_end_lat"]),
-                "seg_end_lng": float(fallback_row["seg_end_lng"]),
-            }
+    if not meta:
+        meta = STREET_METADATA.get(street)
+        if not meta:
+            for candidate in known:
+                if candidate in text.lower():
+                    meta = STREET_METADATA[candidate]
+                    break
+
+            if not meta:
+                fallback_row = None
+                if not df.empty:
+                    fallback_row = df.sort_values(by=["severity", "speed"], ascending=[False, True]).iloc[0]
+
+                if fallback_row is None:
+                    return {
+                        "error": f"Street '{street}' not found in Gandhinagar grid.",
+                        "extracted": extracted,
+                    }
+
+                meta = {
+                    "seg_id": fallback_row["seg_id"],
+                    "street_name": fallback_row["street_name"],
+                    "lat": float(fallback_row["lat"]),
+                    "lng": float(fallback_row["lng"]),
+                    "seg_start_lat": float(fallback_row["seg_start_lat"]),
+                    "seg_start_lng": float(fallback_row["seg_start_lng"]),
+                    "seg_end_lat": float(fallback_row["seg_end_lat"]),
+                    "seg_end_lng": float(fallback_row["seg_end_lng"]),
+                }
 
     with state_lock:
         inc_id = get_next_incident_id()
@@ -437,6 +469,7 @@ def _trigger_voice_incident_from_text(text: str, channel: str):
 
 @app.post("/incident/acknowledge/{incident_id}")
 def acknowledge_incident(incident_id: str):
+    refresh_state_incidents()
     with state_lock:
         inc = next((i for i in state["incidents"] if i["id"] == incident_id), None)
         if not inc:
@@ -454,6 +487,7 @@ def acknowledge_incident(incident_id: str):
 
 @app.post("/incident/resolve/{incident_id}")
 def resolve_incident(incident_id: str):
+    refresh_state_incidents()
     with state_lock:
         inc = next((i for i in state["incidents"] if i["id"] == incident_id), None)
         if not inc:
@@ -573,6 +607,7 @@ async def trigger_voice_incident_audio(
 
 @app.get("/feed")
 def get_feed():
+    refresh_state_incidents()
     ts   = df.iloc[0]["timestamp"]
     rows = df
     segs = []
@@ -632,6 +667,7 @@ def get_feed():
 
 @app.get("/incidents")
 def get_incidents():
+    refresh_state_incidents()
     active   = [i for i in state["incidents"] if i["status"] == "ACTIVE"][::-1]
     resolved = [i for i in state["incidents"] if i["status"] == "RESOLVED"][::-1]
     return {
@@ -648,6 +684,7 @@ def get_insights(incident_id: str):
     Returns Claude-generated 4-part intelligence for an incident.
     Also returns BPR-computed diversion route coordinates.
     """
+    refresh_state_incidents()
     inc = next((i for i in state["incidents"] if i["id"] == incident_id), None)
     if not inc:
         return {"error": "not found"}
@@ -794,6 +831,7 @@ def get_diversion(incident_id: str):
     Returns top-3 BPR-weighted diversion routes for an incident.
     Used by frontend to draw route overlays on the map.
     """
+    refresh_state_incidents()
     inc = next((i for i in state["incidents"] if i["id"] == incident_id), None)
     if not inc:
         return {"routes": []}

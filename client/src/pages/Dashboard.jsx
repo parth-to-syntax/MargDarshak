@@ -571,10 +571,10 @@ export default function Dashboard() {
   async function confirmTriggerIncident(seg) {
     if (!seg) return
     try {
-      const startLat = Number(seg.seg_start_lat || 0)
-      const endLat = Number(seg.seg_end_lat || 0)
-      const startLng = Number(seg.seg_start_lng || 0)
-      const endLng = Number(seg.seg_end_lng || 0)
+      const startLat = Number(seg.seg_start_lat || seg.s1lat || 0)
+      const endLat = Number(seg.seg_end_lat || seg.s2lat || 0)
+      const startLng = Number(seg.seg_start_lng || seg.s1lng || 0)
+      const endLng = Number(seg.seg_end_lng || seg.s2lng || 0)
       const latVal = seg.lat !== undefined ? Number(seg.lat) : ((startLat + endLat) / 2)
       const lngVal = seg.lng !== undefined ? Number(seg.lng) : ((startLng + endLng) / 2)
 

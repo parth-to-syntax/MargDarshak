@@ -313,7 +313,7 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
       map.removeLayer(primaryMarkerRef.current)
       primaryMarkerRef.current = null
     }
-    if (incident) {
+    if (incident && incident.lat !== undefined && incident.lng !== undefined) {
       const icon = L.divIcon({
         className: '',
         html: `<div style="width:20px;height:20px;background:#e84040;border:3px solid #ffd6d6;border-radius:50%;box-shadow:0 10px 26px rgba(232,64,64,0.42);"></div>`,
