@@ -165,7 +165,7 @@ def build_live_graph(G_base: nx.MultiDiGraph,
         ff     = float(row.get("free_flow_speed", 0) or 0)
 
         weight = (
-            999999
+            100000
             if inc in ("ACCIDENT", "ROAD_CLOSED")
             else bpr_travel_time(length, ff, volume, capacity)
         )
@@ -182,7 +182,7 @@ def build_live_graph(G_base: nx.MultiDiGraph,
                     u, v, k = inc_edge
                     if G_base.has_edge(u, v, key=k):
                         vol = _LIVE_EDGE_DATA.get((u, v, k), {}).get("volume", 0)
-                        _LIVE_EDGE_DATA[(u, v, k)] = {"live_weight": 999999, "volume": vol}
+                        _LIVE_EDGE_DATA[(u, v, k)] = {"live_weight": 100000, "volume": vol}
 
     return G_base
 
@@ -245,7 +245,7 @@ def find_diversion_routes(G_base: nx.MultiDiGraph,
         w = _LIVE_EDGE_DATA.get((u, v, key_), {}).get(
             "live_weight", data.get("length", 100) / 5
         )
-        if w >= 999999:
+        if w >= 100000:
             blocked_count += 1
         # Keep minimum weight edge between (u,v) if multiple parallel edges
         if G_di.has_edge(u, v):
@@ -265,7 +265,7 @@ def find_diversion_routes(G_base: nx.MultiDiGraph,
             )
 
     debug.append(f"[GRAPH]  DiGraph: {G_di.number_of_nodes()} nodes, "
-                 f"{G_di.number_of_edges()} edges, {blocked_count} blocked edges (weight=999999)")
+                 f"{G_di.number_of_edges()} edges, {blocked_count} blocked edges (weight=100000)")
 
     # Check if origin is trapped (all outgoing edges from origin in G_di are blocked)
     trapped = True
@@ -275,7 +275,7 @@ def find_diversion_routes(G_base: nx.MultiDiGraph,
             trapped = True
         else:
             for v in neighbors:
-                if G_di[origin][v].get("live_weight", 0) < 999999:
+                if G_di[origin][v].get("live_weight", 0) < 100000:
                     trapped = False
                     break
     else:
@@ -320,10 +320,8 @@ def find_diversion_routes(G_base: nx.MultiDiGraph,
                     blocked = True
                     break
                 edge_data = G_di[u][v]
-                w = edge_data.get("live_weight", 0)
-                if w >= 999999:
-                    blocked = True
-                    break
+                # Removed hard w >= 999999 blocked check to allow soft-block fallback routing
+                pass
 
                 total_time   += w
                 total_length += edge_data.get("length", 0)

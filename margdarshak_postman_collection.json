@@ -1,0 +1,492 @@
+{
+  "info": {
+    "_postman_id": "08938002-7b42-407b-86c5-c78b3b8c0715",
+    "name": "MargDarshak API Collection",
+    "description": "Complete collection of MargDarshak (formerly SkyGrid) backend endpoints. Designed to inspect, test, and manage Ghent/Gandhinagar traffic incidents, detour routing, and AI co-pilot insights.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication & Session",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["login"]
+            },
+            "description": "Logs in the user and issues a secure HTTP-Only cookie `margdarshak_session`."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/logout",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["logout"]
+            },
+            "description": "Logs out the user and clears the active session cookie."
+          }
+        },
+        {
+          "name": "Get Profile (Me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/me",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["me"]
+            },
+            "description": "Returns current logged in user details."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management (Admin-Only)",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/admin/users?page=1&search=",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Lists all system users. Requires admin session."
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"officer_test\",\n  \"email\": \"officer@margdarshak.city\",\n  \"role\": \"officer\",\n  \"send_email\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/admin/users",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "users"]
+            },
+            "description": "Creates a new user. Auto-generates password. Requires admin session."
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/admin/users/2",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "users", "2"]
+            },
+            "description": "Deletes a user by ID. Requires admin session."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Incident Reporting & Lifecycle",
+      "item": [
+        {
+          "name": "Trigger Manual Incident",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seg_id\": \"seg_001\",\n  \"street_name\": \"GH Road\",\n  \"incident_type\": \"ACCIDENT\",\n  \"lat\": 23.2211,\n  \"lng\": 72.6439,\n  \"seg_start_lat\": 23.2215,\n  \"seg_start_lng\": 72.6442,\n  \"seg_end_lat\": 23.2206,\n  \"seg_end_lng\": 72.6437\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/incident/trigger",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "trigger"]
+            },
+            "description": "Manually triggers a new traffic incident. Launches background detour routing and AI insights analysis threads."
+          }
+        },
+        {
+          "name": "Acknowledge Incident",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/incident/acknowledge/INC_001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "acknowledge", "INC_001"]
+            },
+            "description": "Acknowledges an active incident, setting `acknowledged_at` timestamp."
+          }
+        },
+        {
+          "name": "Resolve Incident",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/incident/resolve/INC_001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "resolve", "INC_001"]
+            },
+            "description": "Resolves an active incident. Restores road capacity and clears routing cache."
+          }
+        },
+        {
+          "name": "Voice Incident (Text-transcribed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Accident reported on GH Road near Sector 16. Police needed immediately.\",\n  \"channel\": \"radio\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/incident/voice",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "voice"]
+            },
+            "description": "Triggers an incident using parsed text representing transcribed radio/call voice alerts."
+          }
+        },
+        {
+          "name": "Voice Incident (Audio File upload)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Audio recording of incident report (WAV/MP3/M4A)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:8000/incident/voice-audio",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "voice-audio"]
+            },
+            "description": "Uploads an audio file, transcribes it with Whisper API, parses details using LLM, and triggers the incident."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Traffic Feed & Map Info",
+      "item": [
+        {
+          "name": "Get Live Feed Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/feed",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["feed"]
+            },
+            "description": "Gets speed, volume, and free flow details for all monitored street segments."
+          }
+        },
+        {
+          "name": "List Incidents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/incidents",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incidents"]
+            },
+            "description": "Returns active, resolved, and count metrics for all incidents."
+          }
+        },
+        {
+          "name": "List Emergency Facilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/facilities",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["facilities"]
+            },
+            "description": "Lists coordinates of nearby hospitals and fire stations."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Routing & Co-Pilot Insights",
+      "item": [
+        {
+          "name": "Get Diversion Detours",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/diversion/INC_001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["diversion", "INC_001"]
+            },
+            "description": "Generates top 3 BPR load-aware detour paths and coordinate polylines avoiding blocked nodes."
+          }
+        },
+        {
+          "name": "Get AI Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/insights/INC_001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["insights", "INC_001"]
+            },
+            "description": "Returns AI-analyzed traffic brief narrative, retiming parameters, and diversion summary."
+          }
+        },
+        {
+          "name": "Q&A Copilot Chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Is there any congestion on CH Road?\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/chat",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["chat"]
+            },
+            "description": "Multi-turn officer Q&A conversational interface with LLM."
+          }
+        },
+        {
+          "name": "Get Narrative Log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/narrativelog",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["narrativelog"]
+            },
+            "description": "Retrieves the history logs of LLM narrative decisions."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social Media Alerts",
+      "item": [
+        {
+          "name": "Publish Alerts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"twitter\",\n  \"message\": \"Traffic alert: Accident on GH Road Gandhinagar. Diversions active.\",\n  \"incident_id\": \"INC_001\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/publish",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["publish"]
+            },
+            "description": "Publishes traffic notification alerts to Twitter (X)."
+          }
+        },
+        {
+          "name": "Get Publish Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/publish_log",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["publish_log"]
+            },
+            "description": "Gets log of all published social media posts."
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Debug & Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["health"]
+            },
+            "description": "Basic server health indicator."
+          }
+        },
+        {
+          "name": "Get Incident Debug Log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/debug/log?incident_id=INC_001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["debug", "log"],
+              "query": [
+                {
+                  "key": "incident_id",
+                  "value": "INC_001"
+                }
+              ]
+            },
+            "description": "Retrieves backend processing logs (A* path nodes explored, weights, execution times) for a given incident."
+          }
+        },
+        {
+          "name": "Verify Path & Pipeline (Verify)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/debug/verify/INC_001?include_routes=true",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["debug", "verify", "INC_001"],
+              "query": [
+                {
+                  "key": "include_routes",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Advanced debug validation report on routing state, blocked coordinates, and AI narrative previews."
+          }
+        },
+        {
+          "name": "Incident Logs (System Audit Log)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/incident/logs",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["incident", "logs"]
+            },
+            "description": "Returns audit logs of all active operations and state changes."
+          }
+        }
+      ]
+    }
+  ]
+}

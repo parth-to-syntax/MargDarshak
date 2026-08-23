@@ -323,6 +323,7 @@ class IncidentCoPilot:
 
         try:
             reply = _llm_chat(messages, temperature=0.2, max_tokens=220)
+            print(f"[copilot] Chatbot Raw Reply: {repr(reply)}")
         except Exception as e:
             reply = f"Co-pilot error: {str(e)}"
 
