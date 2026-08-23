@@ -1,6 +1,6 @@
-# SkyGrid - Gandhinagar Traffic Incident Co-Pilot
+# MargDarshak - Gandhinagar Traffic Incident Co-Pilot
 
-SkyGrid is an AI-assisted traffic operations platform for Gandhinagar that combines:
+MargDarshak is an AI-assisted traffic operations platform for Gandhinagar that combines:
 
 - Live traffic feed playback from CSV
 - Incident detection and lifecycle tracking
@@ -13,7 +13,7 @@ The project is split into a FastAPI backend (`server/`) and a Vite + React front
 
 ## 1) What This Project Does
 
-SkyGrid simulates and supports an urban traffic command center workflow:
+MargDarshak simulates and supports an urban traffic command center workflow:
 
 1. A backend loop replays timestamped road-segment telemetry from `gandhinagar_traffic_feed.csv`.
 2. Incidents (`ACCIDENT`, `ROAD_CLOSED`) are detected and tracked in shared state.
@@ -62,7 +62,7 @@ SkyGrid simulates and supports an urban traffic command center workflow:
 ## 3) Repository Structure
 
 ```text
-skygrid/
+margdarshak/
   server/
     api.py
     copilot.py
@@ -122,7 +122,7 @@ TWITTER_BEARER_TOKEN=...
 Frontend runtime override (optional):
 
 - `VITE_API_URL` in frontend environment, or
-- `SKYGRID_API_BASE_URL` in browser localStorage (configured from UI profile settings)
+- `MARGDARSHAK_API_BASE_URL` in browser localStorage (configured from UI profile settings)
 
 ## 6) Local Setup
 

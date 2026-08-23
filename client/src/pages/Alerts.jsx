@@ -24,8 +24,8 @@ function HeaderCard({ activeInc, statusTag }) {
     <header className="rounded-xl border border-gray-200 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-lg">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-4xl font-semibold text-slate-900 lg:text-5xl">Alert Command Center</h1>
-          <p className="mt-2 text-lg leading-relaxed text-slate-600">Generate and manage multi-channel traffic alerts.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Alert Command Center</h1>
+          <p className="mt-1 text-sm text-slate-500">Generate and manage multi-channel traffic alerts.</p>
         </div>
       </div>
 
@@ -35,7 +35,7 @@ function HeaderCard({ activeInc, statusTag }) {
             <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
               <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" /> INCIDENT
             </span>
-            <span className="text-lg font-semibold text-slate-800">{friendlyName} · {activeInc.location}</span>
+            <span className="text-base font-semibold text-slate-800">{friendlyName} · {activeInc.location}</span>
             <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">{statusTag}</span>
           </div>
         </div>
@@ -52,7 +52,7 @@ function AlertCard({ channel, icon, text, onTextChange, onPublish, incidentId })
 
   return (
     <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-lg">
-      <div className="flex items-center justify-between text-lg font-semibold text-slate-800">
+      <div className="flex items-center justify-between text-base font-semibold text-slate-800">
         <div className="flex flex-wrap items-center gap-2">
           {icon} {channel}
         </div>

@@ -21,7 +21,7 @@ export default function Navbar({ feedActive }) {
           <circle cx="9" cy="9" r="8" stroke="#0ea5e9" strokeWidth="1.5"/>
           <path d="M5 9h8M9 5v8" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
-        SkyGrid
+        MargDarshak
         <span className="city">| Gandhinagar</span>
       </Link>
 

@@ -74,7 +74,13 @@ function AppShell() {
       setFeedActive(true)
     }
 
+    const onAuthFailed = () => {
+      localStorage.removeItem('MARGDARSHAK_USER')
+      window.location.href = '/?kicked=true'
+    }
+
     window.addEventListener('playback-ts', onPlaybackTs)
+    window.addEventListener('auth-failed', onAuthFailed)
 
     const checkHealth = async () => {
       const controller = new AbortController()
@@ -102,6 +108,7 @@ function AppShell() {
     return () => {
       mounted = false
       window.removeEventListener('playback-ts', onPlaybackTs)
+      window.removeEventListener('auth-failed', onAuthFailed)
       if (healthId) clearInterval(healthId)
     }
   }, [])

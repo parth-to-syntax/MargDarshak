@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useFeed } from '../hooks/useFeed.js'
 import { findNearest } from '../hooks/utils.js'
-import PlaybackBar from '../components/PlaybackBar.jsx'
 import MapView from '../components/Map.jsx'
 import { API_BASE_URL } from '../config.js'
 import { Mic, MicOff, AlertTriangle } from 'lucide-react'
 
 const API = API_BASE_URL
-const CHAT_STORAGE_KEY = 'SKYGRID_CHAT_HISTORY'
+const CHAT_STORAGE_KEY = 'MARGDARSHAK_CHAT_HISTORY'
 const SUGGESTIONS = ['Optimize route', 'Check congestion', 'Signal retiming plan', 'Create public alert']
 const LOCAL_FACILITIES = [
   { id: 'hosp_001', name: 'Civil Hospital (Sector 12)', type: 'hospital', lat: 23.226, lng: 72.645 },
@@ -142,10 +141,9 @@ function IncidentCard({ inc, onAck, nearestHospital, nearestFireStation }) {
       <div className="mt-2 text-xl font-bold text-red-700">{friendlyName}</div>
       <div className="mt-1 text-base font-medium text-slate-800">{inc.location}</div>
       <div className="inc-time mono" style={{ marginTop: 2 }}>{inc.time}</div>
-      <SeverityBars speed={inc.speed} freeFlow={60} />
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, margin: '8px 0 4px' }}>
-        <span className="inc-speed" style={{ fontSize: 34 }}>{inc.speed}</span>
-        <span className="inc-speed-unit">km/h</span>
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" 
+           style={{ backgroundColor: inc.severity === 'high' ? '#fee2e2' : '#ffedd5', color: inc.severity === 'high' ? '#b91c1c' : '#c2410c' }}>
+        SEVERITY: {(inc.severity || 'high').toUpperCase()}
       </div>
 
       {/* Facilities Distances */}
@@ -194,18 +192,19 @@ function RoadFeed({ segments }) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-lg">
-      <div className="text-lg font-semibold text-slate-800">Top 10 Slowest Roads</div>
+      <div className="text-lg font-semibold text-slate-800">Top Congested Roads</div>
       <div className="mt-1 text-sm text-slate-500">Live congestion ranking</div>
       <div className="mt-2 transition-all duration-300">
         {roads.map(({ name, seg }) => {
           const speed = Number(seg.speed || 0)
+          const congestionText = speed < 20 ? 'Severe' : speed <= 40 ? 'Moderate' : 'Light'
           const color = speed < 20 ? '#ef4444' : speed <= 40 ? '#f97316' : '#22c55e'
           return (
             <div key={name} className="road-row" style={{ padding: '10px 0', borderBottom: '1px solid #e5e7eb' }}>
               <SpeedDot color={color} />
               <span className="road-name text-slate-900" style={{ textAlign: 'left' }}>{name}</span>
-              <span className="road-speed" style={{ color, minWidth: 84, textAlign: 'right' }}>
-                {speed} km/h
+              <span className="road-speed" style={{ color, minWidth: 84, textAlign: 'right', fontWeight: 'bold' }}>
+                {congestionText}
               </span>
             </div>
           )
@@ -276,7 +275,7 @@ function LeafletMap({ segments, diversion_coords }) {
         { color: s.color, weight: w, opacity: 0.9 }
       )
         .bindTooltip(
-          `<b>${s.street_name}</b><br>${s.speed} km/h / ${s.free_flow} ff<br>${s.incident_type} sev${s.severity}`,
+          `<b>${s.street_name}</b><br>Congestion: ${Number(s.speed || 0) < 20 ? 'Severe' : Number(s.speed || 0) <= 40 ? 'Moderate' : 'Light'}<br>${s.incident_type} sev${s.severity}`,
           { sticky: true }
         )
         .addTo(map)
@@ -285,7 +284,7 @@ function LeafletMap({ segments, diversion_coords }) {
       if (s.incident_type === 'ACCIDENT' || s.incident_type === 'ROAD_CLOSED') {
         incRef.current = L.circleMarker([s.lat, s.lng], {
           radius: 12, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.9, weight: 2
-        }).bindPopup(`<b>${s.incident_type}</b><br>${s.street_name}<br>${s.speed} km/h`).addTo(map)
+        }).bindPopup(`<b>${s.incident_type}</b><br>${s.street_name}`).addTo(map)
       }
     }
 
@@ -356,7 +355,7 @@ function StatusBar({ metrics, tsIndex }) {
       </div>
       <div style={{ flex: 1 }}></div>
       <div className="status-item">
-        AVG SPEED <span className="status-val" style={{ marginLeft: 4 }}>{metrics.avg_speed} km/h</span>
+        NETWORK HEALTH <span className="status-val" style={{ marginLeft: 4 }}>{Math.round(metrics.network_health || 0)}%</span>
       </div>
     </div>
   )
@@ -420,6 +419,10 @@ export default function Dashboard() {
     }
     return unique
   }, [incidentLog])
+  const existingActiveIncident = useMemo(() => {
+    if (!pendingSegment || !incidents) return null
+    return incidents.find(i => String(i.seg_id) === String(pendingSegment.seg_id))
+  }, [pendingSegment, incidents])
   const activeIncident = useMemo(() => {
     if (selectedIncidentId) return incidentLog.find((inc) => inc.id === selectedIncidentId)
     return incidents[0] || null
@@ -694,7 +697,7 @@ export default function Dashboard() {
                   return (
                     <div
                       key={inc.id}
-                      onClick={() => setSelectedIncidentId(inc.id)}
+                      onClick={() => setSelectedIncidentId(selectedIncidentId === inc.id ? null : inc.id)}
                       style={{
                         padding: 12,
                         borderRadius: 10,
@@ -718,7 +721,6 @@ export default function Dashboard() {
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 6 }}>
                         <span>Severity: <strong>{severityText}</strong></span>
-                        <span>Speed: <strong>{inc.speed} km/h</strong></span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 2 }}>
                         <span>Time: <strong>{inc.time}</strong></span>
@@ -727,19 +729,6 @@ export default function Dashboard() {
 
                       {isSelected && (
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #cbd5e1', display: 'flex', gap: 6 }}>
-                          <button
-                            style={{
-                              flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 600, borderRadius: 6,
-                              background: '#2563eb', color: '#ffffff',
-                              border: 'none', cursor: 'pointer'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowDetailsId(inc.id)
-                            }}
-                          >
-                            INTEL
-                          </button>
                           <button
                             style={{
                               flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 600, borderRadius: 6,
@@ -791,6 +780,8 @@ export default function Dashboard() {
                 incidents={incidents}
                 onSegmentClick={handleSegmentClick}
                 facilities={facilities}
+                selectedIncidentId={selectedIncidentId}
+                setSelectedIncidentId={setSelectedIncidentId}
               />
               {!isCopilotOpen && (
                 <button className='copilot-btn rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:bg-blue-700' onClick={() => setIsCopilotOpen(true)}>Open AI CoPilot</button>
@@ -799,7 +790,7 @@ export default function Dashboard() {
               <aside className={`chat-side-panel ${isCopilotOpen ? 'open' : 'closed'}`}>
                 <div className='chat-head'>
                   <div>
-                    <div className='chat-title'>SkyGrid CoPilot</div>
+                    <div className='chat-title'>MargDarshak CoPilot</div>
                     <div className='chat-subtitle'>Actionable route, signal, and alert guidance</div>
                   </div>
                   <div className='chat-actions'>
@@ -874,23 +865,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-        <div className='rounded-xl border border-gray-200 bg-white shadow-sm'>
-          <PlaybackBar
-            frameIdx={frameIdx}
-            totalFrames={totalFrames}
-            currentTs={currentTs}
-            isPlaying={isPlaying}
-            setIsPlaying={setIsPlaying}
-            playSpeed={playSpeed}
-            setPlaySpeed={setPlaySpeed}
-            goToFrame={goToFrame}
-            resetPlayback={resetPlayback}
-            incidentCount={incidentCount}
-            congestedCount={congestedCount}
-            avgSpeed={avgSpeed}
-            networkHealth={networkHealth}
-          />
-        </div>
       </div>
       {pendingSegment && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -905,7 +879,7 @@ export default function Dashboard() {
             <div className="mt-2 rounded-lg bg-slate-50 p-3 border border-slate-100">
               <div className="text-sm font-semibold text-slate-800">{pendingSegment.street_name || 'Unnamed Segment'}</div>
               <div className="text-xs text-slate-500 mt-0.5">Segment ID: {pendingSegment.seg_id}</div>
-              <div className="text-xs text-slate-500">Live Speed: {pendingSegment.speed} km/h</div>
+              <div className="text-xs text-slate-500">Live Congestion: {Number(pendingSegment.speed || 0) < 20 ? 'Severe' : Number(pendingSegment.speed || 0) <= 40 ? 'Moderate' : 'Light'}</div>
             </div>
             
             <div className="mt-4">
@@ -915,10 +889,17 @@ export default function Dashboard() {
                 onChange={(e) => setIncidentType(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
-                <option value="ACCIDENT">🚗 Accident / Car Crash</option>
-                <option value="ROAD_CLOSED">🚧 Road Closed / Construction</option>
+                <option value="ACCIDENT">Accident / Car Crash</option>
+                <option value="ROAD_CLOSED">Road Closed / Construction</option>
               </select>
             </div>
+
+            {existingActiveIncident && (
+              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-semibold flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500" />
+                <span>This segment already has an active incident ({existingActiveIncident.id}).</span>
+              </div>
+            )}
 
             <p className="mt-4 text-xs text-slate-500">
               This will pause playback and calculate AI response guidance for the command center.
@@ -933,8 +914,14 @@ export default function Dashboard() {
               </button>
               <button
                 type="button"
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-red-700 hover:scale-105 active:scale-95 transition-all"
+                disabled={!!existingActiveIncident}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-md transition-all ${
+                  existingActiveIncident
+                    ? 'bg-slate-400 cursor-not-allowed opacity-60'
+                    : 'bg-red-600 hover:bg-red-700 hover:scale-105 active:scale-95'
+                }`}
                 onClick={async () => {
+                  if (existingActiveIncident) return
                   const seg = pendingSegment
                   setPendingSegment(null)
                   await confirmTriggerIncident(seg)

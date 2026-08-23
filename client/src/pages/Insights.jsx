@@ -125,7 +125,7 @@ export default function Insights() {
           </div>
 
           <div class="footer">
-            Issued by the SkyGrid Traffic Command Center
+            Issued by the MargDarshak Traffic Command Center
           </div>
         </body>
       </html>
@@ -213,18 +213,18 @@ export default function Insights() {
   return (
     <div className="ai-page">
       <main className="mx-auto w-full max-w-7xl px-6 py-8">
-        <header className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-md flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <header className="mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-md flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
-            <h1 className="text-5xl font-semibold text-slate-900">Traffic Insights & Analytics</h1>
-            <p className="mt-2 text-lg text-slate-600">
+            <h1 className="text-2xl font-bold text-slate-900">Traffic Insights & Analytics</h1>
+            <p className="mt-1 text-sm text-slate-500">
               Deep dive into macro network performance, road stress levels, and incident impact.
             </p>
           </div>
           <button 
             onClick={generatePDF}
-            className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-3 text-lg font-semibold text-white shadow-md transition hover:scale-105 hover:bg-red-700"
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:bg-red-700"
           >
-            <FileText size={20} />
+            <FileText size={18} />
             Generate Advisory PDF
           </button>
         </header>

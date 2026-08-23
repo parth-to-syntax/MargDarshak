@@ -3,7 +3,73 @@ import L from 'leaflet'
 
 const CENTRE = [23.215, 72.645]
 
-export default function MapView({ segments, incident, incidents = [], onSegmentClick, facilities = [] }) {
+function isSegmentOnReroute(seg, activeIncidents) {
+  if (!activeIncidents || activeIncidents.length === 0) return false
+  
+  const sLat = Number(seg.seg_start_lat)
+  const sLng = Number(seg.seg_start_lng)
+  const eLat = Number(seg.seg_end_lat)
+  const eLng = Number(seg.seg_end_lng)
+  if (isNaN(sLat) || isNaN(sLng) || isNaN(eLat) || isNaN(eLng)) return false
+
+  const midLat = (sLat + eLat) / 2
+  const midLng = (sLng + eLng) / 2
+
+  const threshold = 0.0008 // tolerance in degrees (~90 meters)
+
+  for (const inc of activeIncidents) {
+    const route = inc.diversion_route
+    if (!route || !Array.isArray(route) || route.length < 2) continue
+
+    for (let i = 0; i < route.length - 1; i++) {
+      const p1 = route[i]
+      const p2 = route[i + 1]
+      if (!p1 || !p2) continue
+
+      const dist = getDistanceToSegment([midLat, midLng], p1, p2)
+      if (dist < threshold) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+function getDistanceToSegment(p, a, b) {
+  const x = p[0], y = p[1]
+  const x1 = a[0], y1 = a[1]
+  const x2 = b[0], y2 = b[1]
+  
+  const A = x - x1
+  const B = y - y1
+  const C = x2 - x1
+  const D = y2 - y1
+  
+  const dot = A * C + B * D
+  const lenSq = C * C + D * D
+  let param = -1
+  if (lenSq !== 0) {
+    param = dot / lenSq
+  }
+  
+  let xx, yy
+  if (param < 0) {
+    xx = x1
+    yy = y1
+  } else if (param > 1) {
+    xx = x2
+    yy = y2
+  } else {
+    xx = x1 + param * C
+    yy = y1 + param * D
+  }
+  
+  const dx = x - xx
+  const dy = y - yy
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+export default function MapView({ segments, incident, incidents = [], onSegmentClick, facilities = [], selectedIncidentId, setSelectedIncidentId }) {
   const containerRef = useRef(null)
   const lmapRef   = useRef(null)
   const layersRef = useRef([])
@@ -13,6 +79,14 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
   const facilitiesRef = useRef([])
   const segmentsRef = useRef(segments)
   const onSegmentClickRef = useRef(onSegmentClick)
+
+  const [openIncidentId, setOpenIncidentId] = useState(null)
+  const openIncidentIdRef = useRef(null)
+  const updateOpenIncidentIdRef = useRef(null)
+  updateOpenIncidentIdRef.current = (id) => {
+    setOpenIncidentId(id)
+    openIncidentIdRef.current = id
+  }
 
   useEffect(() => {
     segmentsRef.current = segments
@@ -70,13 +144,16 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
       attributionControl: false,
     })
 
-    const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd' })
-    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd' })
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
-    
-    // Using Stamen Terrain or another free terrain layer, here we use generic ESRI NatGeo/Terrain
-    const terrain = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}')
+    const tileOptions = {
+      updateWhenIdle: true,
+      keepBuffer: 16,
+    }
+
+    const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { ...tileOptions, subdomains: 'abcd' })
+    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { ...tileOptions, subdomains: 'abcd' })
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', tileOptions)
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', tileOptions)
+    const terrain = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', tileOptions)
 
     sat.addTo(map)
 
@@ -136,6 +213,10 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
       }
     });
 
+    map.on('popupclose', () => {
+      updateOpenIncidentIdRef.current?.(null)
+    })
+
     lmapRef.current = map
     return () => {
       resizeObserver?.disconnect()
@@ -155,24 +236,58 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
 
     segments.forEach(seg => {
       if (!seg.seg_start_lat || !seg.seg_end_lat) return
-      const freeFlow = seg.free_flow ?? seg.free_flow_speed ?? 0
-      const weight = seg.incident_type === 'ACCIDENT' || seg.incident_type === 'ROAD_CLOSED'
-        ? 7 : freeFlow >= 55 ? 4 : 2.5
+      
+      const isIncident = seg.incident_type === 'ACCIDENT' || seg.incident_type === 'ROAD_CLOSED'
+      const onReroute = isSegmentOnReroute(seg, incidents)
+      if (onReroute && !isIncident) return
+
+      const color = isIncident ? '#DC2626' : '#4ADE80'
+      const weight = isIncident ? 5 : 2
+      const opacity = isIncident ? 1.0 : 0.8
+
+      const speedVal = Number(seg.speed || 0)
+      const congestion = speedVal < 20 ? 'Severe' : speedVal <= 40 ? 'Moderate' : 'Light'
 
       const line = L.polyline(
         [[seg.seg_start_lat, seg.seg_start_lng], [seg.seg_end_lat, seg.seg_end_lng]],
-        { color: seg.color, weight, opacity: 0.88 }
+        { color, weight, opacity }
       ).bindTooltip(
         `<b style="font-family:monospace;font-size:12px">${seg.street_name}</b><br/>` +
         `<span style="font-family:monospace;font-size:11px">` +
         `SEG ${seg.seg_id || 'N/A'}<br/>` +
-        `${seg.speed} km/h | ff ${freeFlow}<br/>` +
+        `Congestion: ${congestion}<br/>` +
         `${seg.incident_type} sev${seg.severity} | ${seg.vehicle_count} vehicles<br/><br/>` +
         `<span style="color:#fbbf24;font-weight:bold;">[CLICK TO TRIGGER ACCIDENT]</span></span>`,
         { sticky: true }
       ).on('click', (e) => {
         L.DomEvent.stopPropagation(e)
-        if (onSegmentClick) onSegmentClick(seg)
+        const match = incidents.find(i => i.seg_id === seg.seg_id)
+        if (match) {
+          if (openIncidentIdRef.current === match.id) {
+            return
+          }
+          setSelectedIncidentId(selectedIncidentId === match.id ? null : match.id)
+          updateOpenIncidentIdRef.current?.(match.id)
+          
+          const hash = Array.from(match.id || '').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+          const friendlyName = match.type === 'ROAD_CLOSED' ? 'Road Closed' : (hash % 2 === 0 ? 'Car Crash' : 'Truck Crash')
+          
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(
+              `<div style="font-family: inherit; padding: 4px;">` +
+              `<b style="color:#dc2626;text-transform:uppercase;font-size:10px;letter-spacing:0.5px;">Incident Details</b>` +
+              `<div style="font-weight:bold;font-size:13px;color:#0f172a;margin-top:2px;">${friendlyName}</div>` +
+              `<div style="font-size:11px;color:#475569;margin-top:4px;">ID: <b>${match.id}</b></div>` +
+              `<div style="font-size:11px;color:#475569;">Location: <b>${match.location}</b></div>` +
+              `<div style="font-size:11px;color:#475569;">Time: <b>${match.time}</b></div>` +
+              `<div style="font-size:11px;color:#475569;">Severity: <b>${match.severity >= 3 ? 'High' : 'Medium'}</b></div>` +
+              `</div>`
+            )
+            .openOn(map)
+        } else {
+          if (onSegmentClick) onSegmentClick(seg)
+        }
       }).addTo(map)
       layersRef.current.push(line)
 
@@ -184,12 +299,12 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
           iconAnchor: [9, 9],
         })
         const marker = L.marker([seg.lat, seg.lng], { icon: markerIcon }).bindPopup(
-          `<b>${seg.incident_type}</b><br/>${seg.street_name}<br/>${seg.speed} km/h`
+          `<b>${seg.incident_type}</b><br/>${seg.street_name}`
         ).addTo(map)
         markerRefs.current.push(marker)
       }
     })
-  }, [segments])
+  }, [segments, incidents, selectedIncidentId])
 
   useEffect(() => {
     const map = lmapRef.current
@@ -208,7 +323,7 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
       const marker = L.marker([incident.lat, incident.lng], { icon })
         .bindPopup(
           `<b style="font-family:monospace">${incident.type}</b><br/>` +
-          `<span style="font-family:monospace;font-size:11px">${incident.location}<br/>${incident.speed} km/h</span>`
+          `<span style="font-family:monospace;font-size:11px">${incident.location}</span>`
         ).addTo(map)
       primaryMarkerRef.current = marker
     }
@@ -223,16 +338,93 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
     incidents.forEach((inc) => {
       const coords = inc.diversion_route
       if (coords && coords.length > 1) {
+        const isSelected = selectedIncidentId === inc.id
+        
+        // Color palette parameters from Master Prompt Option 2+3
+        const color = '#D946EF'
+        const weight = isSelected ? 5 : 3
+        const opacity = isSelected ? 1.0 : (selectedIncidentId ? 0.3 : 0.75)
+
+        // Selected state glow outline effect
+        if (isSelected) {
+          const glow = L.polyline(coords, {
+            color,
+            weight: 12,
+            opacity: 0.35,
+          }).addTo(map)
+          diversionRef.current.push(glow)
+        }
+
         const line = L.polyline(coords, {
-          color:     '#3b82f6',
-          weight:    6,
-          opacity:   0.9,
-          dashArray: '10 6',
-        }).bindTooltip(`Suggested diversion for ${inc.id}`).addTo(map)
+          color,
+          weight,
+          opacity,
+          dashArray: '8 5',
+        }).bindTooltip(`Suggested diversion for ${inc.id}`).on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+          setSelectedIncidentId(selectedIncidentId === inc.id ? null : inc.id)
+        }).addTo(map)
         diversionRef.current.push(line)
+
+        // Small tag/label at the start of the selected detour showing the incident ID
+        if (isSelected) {
+          const labelIcon = L.divIcon({
+            className: '',
+            html: `<div style="
+              background: #D946EF;
+              color: #0f172a;
+              font-weight: bold;
+              font-size: 10px;
+              padding: 2px 6px;
+              border-radius: 4px;
+              border: 1px solid #0f172a;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+              white-space: nowrap;
+            ">${inc.id}</div>`,
+            iconSize: [40, 20],
+            iconAnchor: [20, 26],
+          })
+          const labelMarker = L.marker(coords[0], { icon: labelIcon }).addTo(map)
+          diversionRef.current.push(labelMarker)
+        }
       }
     })
-  }, [incidents])
+  }, [incidents, selectedIncidentId])
+
+  // Sync state detail popup on map when selected from sidebar
+  useEffect(() => {
+    const map = lmapRef.current
+    if (!map) return
+    if (!selectedIncidentId) {
+      if (openIncidentIdRef.current) {
+        map.closePopup()
+        updateOpenIncidentIdRef.current?.(null)
+      }
+      return
+    }
+    const match = incidents.find(i => i.id === selectedIncidentId)
+    if (match) {
+      if (openIncidentIdRef.current === match.id) return
+      updateOpenIncidentIdRef.current?.(match.id)
+      
+      const hash = Array.from(match.id || '').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+      const friendlyName = match.type === 'ROAD_CLOSED' ? 'Road Closed' : (hash % 2 === 0 ? 'Car Crash' : 'Truck Crash')
+      
+      L.popup()
+        .setLatLng([match.lat, match.lng])
+        .setContent(
+          `<div style="font-family: inherit; padding: 4px;">` +
+          `<b style="color:#dc2626;text-transform:uppercase;font-size:10px;letter-spacing:0.5px;">Incident Details</b>` +
+          `<div style="font-weight:bold;font-size:13px;color:#0f172a;margin-top:2px;">${friendlyName}</div>` +
+          `<div style="font-size:11px;color:#475569;margin-top:4px;">ID: <b>${match.id}</b></div>` +
+          `<div style="font-size:11px;color:#475569;">Location: <b>${match.location}</b></div>` +
+          `<div style="font-size:11px;color:#475569;">Time: <b>${match.time}</b></div>` +
+          `<div style="font-size:11px;color:#475569;">Severity: <b>${match.severity >= 3 ? 'High' : 'Medium'}</b></div>` +
+          `</div>`
+        )
+        .openOn(map)
+    }
+  }, [selectedIncidentId, incidents])
 
   useEffect(() => {
     const map = lmapRef.current
@@ -305,6 +497,40 @@ export default function MapView({ segments, incident, incidents = [], onSegmentC
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Map Legend */}
+      <div style={{
+        position: 'absolute',
+        bottom: 16,
+        left: 16,
+        zIndex: 1000,
+        background: 'rgba(255, 255, 255, 0.95)',
+        padding: '10px 14px',
+        borderRadius: 8,
+        border: '1px solid #cbd5e1',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        fontFamily: 'sans-serif',
+        fontSize: 11,
+        color: '#334155',
+        pointerEvents: 'none'
+      }}>
+        <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 2, color: '#0f172a' }}>Map Legend</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 24, height: 2, background: '#4ADE80' }}></div>
+          <span>Base Road Network</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 24, height: 5, background: '#DC2626' }}></div>
+          <span>Blocked Incident Segment</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 24, height: 3, borderTop: '3px dashed #D946EF' }}></div>
+          <span>Suggested Detour Route</span>
+        </div>
+      </div>
+
       <form 
         onSubmit={handleSearch}
         style={{ position: 'absolute', top: 10, left: 60, zIndex: 1000, display: 'flex', gap: 6, opacity: 0.95 }}

@@ -26,20 +26,19 @@ from auth import (
     init_db,
     list_users,
     load_incidents,
-    load_playback_state,
     save_incident,
-    save_playback_state,
     add_incident_log,
     get_incident_logs,
     get_next_incident_id,
     get_connection,
+    kick_user_sessions,
 )
 
 import os
 import tweepy
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 _groq_key = (os.getenv("GROQ_API_KEY") or "").strip()
 
 
@@ -56,7 +55,7 @@ def _make_groq_client():
 groq_client = _make_groq_client()
 
 # ── App ───────────────────────────────────────────────────────────
-app = FastAPI(title="SkyGrid — Gandhinagar Traffic Co-Pilot")
+app = FastAPI(title="MargDarshak — Gandhinagar Traffic Co-Pilot")
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,7 +73,7 @@ async def auth_middleware(request: Request, call_next):
     if request.method == "OPTIONS" or request.url.path in allowed_paths or request.url.path.startswith("/static"):
         return await call_next(request)
 
-    token = request.cookies.get("skygrid_session")
+    token = request.cookies.get("margdarshak_session")
     user = get_user_from_session(token)
     if not user:
         return JSONResponse(status_code=401, content={"detail": "not_authenticated"})
@@ -84,8 +83,8 @@ async def auth_middleware(request: Request, call_next):
 # ── Load data ─────────────────────────────────────────────────────
 df = pd.read_csv("gandhinagar_traffic_feed.csv")
 df["timestamp"] = pd.to_datetime(df["timestamp"])
-timestamps = sorted(df["timestamp"].unique())
-TOTAL      = len(timestamps)
+df = df.drop_duplicates(subset=["seg_id"], keep="first")
+TOTAL      = 1
 
 # ── Build Street Metadata Lookup ──────────────────────────────
 # We create a dictionary of unique street names and their representative 
@@ -130,19 +129,9 @@ if persisted_incidents:
     state["incidents"] = persisted_incidents
     state["inc_counter"] = max(int(i.get("id", "INC_000").split("_")[-1]) for i in persisted_incidents if i.get("id")) + 1
 
-persisted_state = load_playback_state()
-if persisted_state:
-    state["ts_index"] = int(persisted_state.get("ts_index", state["ts_index"]))
-    state["playing"] = bool(persisted_state.get("playing", state["playing"]))
-    state["tick_sleep"] = float(persisted_state.get("tick_sleep", state["tick_sleep"]))
-    state["reset_version"] = int(persisted_state.get("reset_version", state["reset_version"]))
 
-def get_latest_frame_df():
-    with state_lock:
-        ts = timestamps[state["ts_index"]]
-        return df[df["timestamp"] == ts]
 
-copilot.start_periodic_refresh(get_latest_frame_df)
+
 
 def _dedup_key(incident: dict) -> str:
     location = (incident.get("location") or "").strip().lower()
@@ -177,12 +166,7 @@ def _upsert_incident(incident: dict) -> dict:
         state["incidents"].append(incident)
         save_incident(incident)
         add_incident_log(incident["id"], f"{incident['id']} created")
-        save_playback_state({
-            "ts_index": state["ts_index"],
-            "playing": state["playing"],
-            "tick_sleep": state["tick_sleep"],
-            "reset_version": state["reset_version"],
-        })
+
         return incident
 
 
@@ -232,81 +216,7 @@ def should_trigger(row) -> bool:
     return severity >= 2 or (free_flow - speed) / free_flow >= 0.20
 
 
-# ── Background feed tick ──────────────────────────────────────────
-def tick():
-    while True:
-        if state["playing"]:
-            with state_lock:
-                ts = timestamps[state["ts_index"]]
-                rows = df[df["timestamp"] == ts]
-
-            # Update co-pilot graph with live data
-            copilot.on_feed_tick(rows)
-
-            inc_rows = rows[rows["incident_type"].isin(["ACCIDENT", "ROAD_CLOSED"])]
-            with state_lock:
-                seen_ids = {i["seg_id"] for i in state["incidents"] if i["status"] == "ACTIVE"}
-                seen_roads = {i["location"] for i in state["incidents"] if i["status"] == "ACTIVE"}
-
-            for _, r in inc_rows.iterrows():
-                with state_lock:
-                    if r["seg_id"] in seen_ids or r["street_name"] in seen_roads:
-                        continue
-                    inc_id = get_next_incident_id()
-                    incident = {
-                        "id":       inc_id,
-                        "seg_id":   r["seg_id"],
-                        "location": r["street_name"],
-                        "direction": r.get("direction", ""),
-                        "type":     r["incident_type"],
-                        "severity": int(r["severity"]),
-                        "speed":    calculate_incident_speed({"type": r["incident_type"], "severity": int(r["severity"]), "status": "ACTIVE"}),
-                        "time":     datetime.now().strftime("%H:%M:%S"),
-                        "status":   "ACTIVE",
-                        "lat":      float(r["lat"]),
-                        "lng":      float(r["lng"]),
-                        "seg_start_lat": float(r["seg_start_lat"]),
-                        "seg_start_lng": float(r["seg_start_lng"]),
-                        "seg_end_lat": float(r["seg_end_lat"]),
-                        "seg_end_lng": float(r["seg_end_lng"]),
-                        "detected_at": time.time(),
-                    }
-                    incident = _upsert_incident(incident)
-                    seen_ids.add(incident["seg_id"])
-                    seen_roads.add(incident["location"])
-
-                if should_trigger(r):
-                    with state_lock:
-                        state["playing"] = False
-                    threading.Thread(
-                        target=copilot.on_incident_detected,
-                        args=(incident, rows),
-                        daemon=True,
-                    ).start()
-
-            with state_lock:
-                active_seg_ids = set(inc_rows["seg_id"].values)
-                now = time.time()
-                for i in state["incidents"]:
-                    if i["status"] == "ACTIVE" and i["seg_id"] not in active_seg_ids:
-                        if now - i.get("detected_at", now) > 15:
-                            i["status"] = "RESOLVED"
-                            i["resolved_at"] = datetime.now().isoformat()
-                            i["diversion_route"] = None
-                            save_incident(i)
-                            copilot.resolve_incident(i["id"], i["seg_id"])
-                            add_incident_log(i["id"], f"{i['id']} resolved")
-                state["ts_index"] = (state["ts_index"] + 1) % TOTAL
-                save_playback_state({
-                    "ts_index": state["ts_index"],
-                    "playing": state["playing"],
-                    "tick_sleep": state["tick_sleep"],
-                    "reset_version": state["reset_version"],
-                })
-
-        time.sleep(state["tick_sleep"])
-
-threading.Thread(target=tick, daemon=True).start()
+# Background feed tick thread has been removed. Active state is database-driven.
 
 # ── Helpers ───────────────────────────────────────────────────────
 def _color(speed, free_flow):
@@ -352,16 +262,19 @@ def login(payload: LoginPayload, response: Response):
     if not user:
         raise HTTPException(status_code=401, detail="invalid_credentials")
 
+    # Invalidate all prior sessions for this user (Newest Login Wins)
+    # kick_user_sessions(user["id"])
+
     token = create_session(user["id"])
-    response.set_cookie(key="skygrid_session", value=token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
+    response.set_cookie(key="margdarshak_session", value=token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
     return {"ok": True, "user": user, "token": token}
 
 
 @app.post("/logout")
 def logout(request: Request, response: Response):
-    token = request.cookies.get("skygrid_session")
+    token = request.cookies.get("margdarshak_session")
     delete_session(token)
-    response.delete_cookie("skygrid_session")
+    response.delete_cookie("margdarshak_session")
     return {"ok": True}
 
 
@@ -396,8 +309,27 @@ def list_admin_users(request: Request, page: int = 1, search: str = None):
     }
 
 
+user_creation_timestamps = []
+creation_lock = threading.Lock()
+
+def check_user_creation_rate_limit() -> bool:
+    global user_creation_timestamps
+    now = time.time()
+    with creation_lock:
+        user_creation_timestamps = [t for t in user_creation_timestamps if now - t < 60]
+        if len(user_creation_timestamps) >= 5:
+            return False
+        user_creation_timestamps.append(now)
+        return True
+
+
 @app.post("/admin/users")
 def create_admin_user(payload: UserCreatePayload, request: Request):
+    if not check_user_creation_rate_limit():
+        raise HTTPException(
+            status_code=429,
+            detail="Too many user creation attempts. Please wait a minute before trying again."
+        )
     user = getattr(request.state, "user", None)
     if not user or user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="forbidden")
@@ -444,12 +376,8 @@ def _trigger_voice_incident_from_text(text: str, channel: str):
                 break
 
         if not meta:
-            ts = timestamps[state["ts_index"]]
-            rows = df[df["timestamp"] == ts]
             fallback_row = None
-            if not rows.empty:
-                fallback_row = rows.sort_values(by=["severity", "speed"], ascending=[False, True]).iloc[0]
-            elif not df.empty:
+            if not df.empty:
                 fallback_row = df.sort_values(by=["severity", "speed"], ascending=[False, True]).iloc[0]
 
             if fallback_row is None:
@@ -497,8 +425,7 @@ def _trigger_voice_incident_from_text(text: str, channel: str):
 
     incident = _upsert_incident(incident)
 
-    ts = timestamps[state["ts_index"]]
-    rows = df[df["timestamp"] == ts]
+    rows = df
     threading.Thread(
         target=copilot.on_incident_detected,
         args=(incident, rows),
@@ -551,6 +478,13 @@ def get_logs():
 
 @app.post("/incident/trigger")
 def trigger_manual_incident(payload: IncidentTrigger):
+    with state_lock:
+        active_inc = next((i for i in state["incidents"] if i.get("seg_id") == payload.seg_id and i.get("status") == "ACTIVE"), None)
+        if active_inc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This segment already has an active incident ({active_inc.get('id')})."
+            )
     inc_id = get_next_incident_id()
     print(f"INCIDENT RECEIVED: {inc_id}")
     with state_lock:
@@ -582,8 +516,7 @@ def trigger_manual_incident(payload: IncidentTrigger):
     incident = _upsert_incident(incident)
     print(f"INCIDENT SAVED: {inc_id}")
 
-    ts = timestamps[state["ts_index"]]
-    rows = df[df["timestamp"] == ts]
+    rows = df
 
     threading.Thread(
         target=copilot.on_incident_detected,
@@ -640,17 +573,22 @@ async def trigger_voice_incident_audio(
 
 @app.get("/feed")
 def get_feed():
-    ts   = timestamps[state["ts_index"]]
-    rows = df[df["timestamp"] == ts]
+    ts   = df.iloc[0]["timestamp"]
+    rows = df
     segs = []
+
+    active_incidents = [i for i in state["incidents"] if i["status"] == "ACTIVE"]
 
     for _, r in rows.iterrows():
         s_id = r["seg_id"]
-        # Check if there's an active manual/voice incident for this segment
-        i_type = r["incident_type"]
-        for inc in state["incidents"]:
-            if inc["status"] == "ACTIVE" and inc.get("seg_id") == s_id:
+        # Clear the CSV-recorded playback incidents; use DB-driven status
+        i_type = "CLEAR"
+        severity = int(r["severity"])
+        
+        for inc in active_incidents:
+            if str(inc.get("seg_id")) == str(s_id):
                 i_type = inc["type"]
+                severity = int(inc.get("severity", 3))
                 break
 
         segs.append({
@@ -659,7 +597,7 @@ def get_feed():
             "speed":         int(r["speed"]) if i_type == "CLEAR" else 5,
             "free_flow":     int(r["free_flow_speed"]),
             "incident_type": i_type,
-            "severity":      int(r["severity"]) if i_type == "CLEAR" else 3,
+            "severity":      severity if i_type == "CLEAR" else 3,
             "vehicle_count": int(r["vehicle_count"]),
             "direction":     r["direction"],
             "lat":           float(r["lat"]),
@@ -676,18 +614,18 @@ def get_feed():
 
     return {
         "timestamp":  str(ts),
-        "ts_index":   state["ts_index"],
-        "reset_version": state["reset_version"],
-        "playing":    state["playing"],
-        "tick_sleep_ms": int(state["tick_sleep"] * 1000),
+        "ts_index":   0,
+        "reset_version": 0,
+        "playing":    False,
+        "tick_sleep_ms": 1000,
         "total":      TOTAL,
         "segments":   segs,
         "metrics": {
             "total_vehicles":   int(rows["vehicle_count"].sum()),
             "avg_speed":        round(avg_speed, 1),
             "network_health":   round((avg_speed / avg_ff) * 100) if avg_ff > 0 else 100,
-            "incident_count":   int(rows["incident_type"].isin(["ACCIDENT", "ROAD_CLOSED"]).sum()),
-            "congestion_count": int((rows["incident_type"] == "CONGESTION").sum()),
+            "incident_count":   len([i for i in active_incidents if i["type"] in ("ACCIDENT", "ROAD_CLOSED")]),
+            "congestion_count": len([i for i in active_incidents if i["type"] == "CONGESTION"]),
         },
     }
 
@@ -846,24 +784,7 @@ def get_publish_log():
     return state["publish_log"]
 
 
-@app.get("/control")
-def control(action: str, frame: int = -1, speed_ms: int = -1):
-    if action == "play":   state["playing"] = True
-    if action == "pause":  state["playing"] = False
-    if action == "reset":
-        state["ts_index"] = 0
-        state["reset_version"] += 1
-    if action == "speed" and speed_ms > 0:
-        # Guardrails prevent an unreasonably high-frequency loop.
-        state["tick_sleep"] = max(0.08, speed_ms / 1000.0)
-    if action == "seek" and 0 <= frame < TOTAL:
-        state["ts_index"] = frame
-    return {
-        "playing":  state["playing"],
-        "ts_index": state["ts_index"],
-        "tick_sleep": state["tick_sleep"],
-        "total":    TOTAL,
-    }
+# Control endpoint removed.
 
 
 
@@ -877,17 +798,31 @@ def get_diversion(incident_id: str):
     if not inc:
         return {"routes": []}
 
-    ts   = timestamps[state["ts_index"]]
-    rows = df[df["timestamp"] == ts]
-    G    = build_live_graph(G_base, rows)
+    rows = df
+    
+    active_incs = [i for i in state["incidents"] if i.get("status") == "ACTIVE"]
+    if not any(i["id"] == inc["id"] for i in active_incs):
+        active_incs.append(inc)
+        
+    G = build_live_graph(G_base, rows, active_incidents=active_incs)
+
+    dest_lat = float(inc.get("seg_end_lat") or inc.get("lat") or 23.240)
+    dest_lng = float(inc.get("seg_end_lng") or inc.get("lng") or 72.660)
+    if abs(dest_lat - float(inc["lat"])) < 0.0001 and abs(dest_lng - float(inc["lng"])) < 0.0001:
+        dest_lat = 23.240
+        dest_lng = 72.660
 
     routes, _ = find_diversion_routes(
         G,
         inc["lat"], inc["lng"],
-        23.240, 72.660,
+        dest_lat, dest_lng,
         incident=inc,
         k=3,
     )
+
+    if routes and not inc.get("diversion_route"):
+        inc["diversion_route"] = routes[0]["coords"]
+        save_incident(inc)
 
     return {
         "routes": [
@@ -922,16 +857,26 @@ def debug_verify_incident(incident_id: str, include_routes: bool = False):
             "known_ids": [i["id"] for i in state["incidents"][-10:]],
         }
 
-    ts = timestamps[state["ts_index"]]
-    rows = df[df["timestamp"] == ts]
+    ts = df.iloc[0]["timestamp"]
+    rows = df
 
     routes = []
     if include_routes:
-        G = build_live_graph(G_base, rows)
+        active_incs = [i for i in state["incidents"] if i.get("status") == "ACTIVE"]
+        if not any(i["id"] == inc["id"] for i in active_incs):
+            active_incs.append(inc)
+        G = build_live_graph(G_base, rows, active_incidents=active_incs)
+        
+        dest_lat = float(inc.get("seg_end_lat") or inc.get("lat") or 23.240)
+        dest_lng = float(inc.get("seg_end_lng") or inc.get("lng") or 72.660)
+        if abs(dest_lat - float(inc["lat"])) < 0.0001 and abs(dest_lng - float(inc["lng"])) < 0.0001:
+            dest_lat = 23.240
+            dest_lng = 72.660
+            
         routes, _ = find_diversion_routes(
             G,
             inc["lat"], inc["lng"],
-            23.240, 72.660,
+            dest_lat, dest_lng,
             incident=inc,
             k=3,
         )

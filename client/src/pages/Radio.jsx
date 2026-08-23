@@ -3,10 +3,7 @@ import { Flame, Mic, RadioTower, Shield, Stethoscope, TrafficCone } from 'lucide
 import { API_BASE_URL } from '../config.js'
 
 const CHANNELS = [
-  { id: 'police', name: 'Police Dispatch', color: '#2563eb', icon: Shield, placeholder: 'e.g. "Collision near CH Road, major injury reported"' },
-  { id: 'fire', name: 'Fire & Rescue', color: '#2563eb', icon: Flame, placeholder: 'e.g. "Engine fire on Sector 21 road, hazards active"' },
-  { id: 'ems', name: 'Medical / EMS', color: '#2563eb', icon: Stethoscope, placeholder: 'e.g. "Ambulance dispatcher request at Sector 11 crossing"' },
-  { id: 'traffic', name: 'Traffic Control', color: '#2563eb', icon: TrafficCone, placeholder: 'e.g. "Heavy congestion near GH Road, lanes blocked"' },
+  { id: 'traffic', name: 'Traffic Operations Dispatch', color: '#2563eb', icon: RadioTower, placeholder: 'e.g. "Collision near CH Road, road block reported"' },
 ]
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 18000) {
@@ -265,10 +262,10 @@ export default function Radio() {
               <RadioTower className="h-4 w-4" />
               Ground Radio Simulation
             </div>
-            <h1 className="mt-4 text-4xl font-semibold leading-tight text-slate-900 lg:text-5xl">
+            <h1 className="mt-4 text-2xl font-bold text-slate-900">
               Voice Command Hub
             </h1>
-            <p className="mt-4 max-w-3xl text-lg leading-relaxed text-slate-600">
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
               Hold any channel mic to capture audio and register an incident directly from speech.
             </p>
           </header>

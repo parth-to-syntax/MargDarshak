@@ -9,7 +9,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).with_name("skygrid.db")
+DB_PATH = Path(__file__).with_name("margdarshak.db")
 
 
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -58,12 +58,6 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS playback_state (
-                key TEXT PRIMARY KEY,
-                value_text TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
             CREATE TABLE IF NOT EXISTS incident_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 incident_id TEXT NOT NULL,
@@ -83,17 +77,17 @@ def init_db() -> None:
             UPDATE users
             SET email = CASE
                 WHEN email IS NOT NULL AND email != '' THEN email
-                WHEN username = 'admin' THEN 'admin@skygrid.city'
-                WHEN username = 'officer' THEN 'officer@skygrid.city'
-                ELSE username || '@skygrid.city'
+                WHEN username = 'admin' THEN 'admin@margdarshak.city'
+                WHEN username = 'officer' THEN 'officer@margdarshak.city'
+                ELSE username || '@margdarshak.city'
             END
             """
         )
         conn.commit()
 
         if conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is None:
-            create_user("admin", "admin123", "admin", email="admin@skygrid.city", is_active=True, send_email=False)
-            create_user("officer", "officer123", "officer", email="officer@skygrid.city", is_active=True, send_email=False)
+            create_user("admin", "admin123", "admin", email="admin@margdarshak.city", is_active=True, send_email=False)
+            create_user("officer", "officer123", "officer", email="officer@margdarshak.city", is_active=True, send_email=False)
 
 
 def hash_password(password: str) -> str:
@@ -102,8 +96,8 @@ def hash_password(password: str) -> str:
     return f"{salt}:${digest.hex()}"
 
 
-def generate_temp_password(length: int = 12) -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+def generate_temp_password(length: int = 6) -> str:
+    alphabet = "abcdefghijkmnopqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
@@ -129,7 +123,7 @@ def create_user(
     if not password:
         password = generate_temp_password()
     if not email:
-        email = f"{username.lower()}@skygrid.city"
+        email = f"{username.lower()}@margdarshak.city"
 
     password_hash = hash_password(password)
     now = datetime.now(timezone.utc).isoformat()
@@ -174,7 +168,7 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     if not user or not user["is_active"]:
         return None
     if verify_password(password, user["password_hash"]):
-        email = user.get("email") or f'{user["username"]}@skygrid.city'
+        email = user.get("email") or f'{user["username"]}@margdarshak.city'
         return {
             "id": user["id"],
             "username": user["username"],
@@ -205,7 +199,14 @@ def get_user_from_session(token: Optional[str]) -> Optional[dict]:
     if not token:
         return None
 
+    # Auto-expiry safeguard: purge sessions older than 24h or whose expires_at is passed
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=24)).isoformat()
+    now_iso = now.isoformat()
     with get_connection() as conn:
+        conn.execute("DELETE FROM sessions WHERE expires_at <= ? OR created_at <= ?", (now_iso, cutoff))
+        conn.commit()
+
         row = conn.execute(
             "SELECT s.token, s.expires_at, u.id AS user_id, u.username, u.email, u.role, u.is_active FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?",
             (token,),
@@ -214,12 +215,7 @@ def get_user_from_session(token: Optional[str]) -> Optional[dict]:
     if not row:
         return None
 
-    expires_at = datetime.fromisoformat(row["expires_at"])
-    if expires_at <= datetime.now(timezone.utc):
-        delete_session(token)
-        return None
-
-    email = row["email"] or f"{row['username']}@skygrid.city"
+    email = row["email"] or f"{row['username']}@margdarshak.city"
     return {
         "id": row["user_id"],
         "username": row["username"],
@@ -246,7 +242,7 @@ def list_users() -> list[dict]:
     users = []
     for row in rows:
       user = dict(row)
-      user["email"] = user.get("email") or f"{user['username']}@skygrid.city"
+      user["email"] = user.get("email") or f"{user['username']}@margdarshak.city"
       users.append(user)
     return users
 
@@ -299,23 +295,6 @@ def load_incidents() -> list[dict]:
     return incidents
 
 
-def save_playback_state(state: dict) -> None:
-    with get_connection() as conn:
-        conn.execute(
-            "INSERT INTO playback_state (key, value_text, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_text=excluded.value_text, updated_at=excluded.updated_at",
-            ("main", json.dumps(state), datetime.now(timezone.utc).isoformat()),
-        )
-        conn.commit()
-
-
-def load_playback_state() -> dict:
-    with get_connection() as conn:
-        row = conn.execute("SELECT value_text FROM playback_state WHERE key = ?", ("main",)).fetchone()
-    if not row:
-        return {}
-    return json.loads(row["value_text"])
-
-
 def send_credentials_email(email: str, username: str, password: str) -> None:
     smtp_host = os.getenv("SMTP_HOST")
     if not smtp_host:
@@ -323,11 +302,11 @@ def send_credentials_email(email: str, username: str, password: str) -> None:
         return
 
     msg = EmailMessage()
-    msg["Subject"] = "Your SkyGrid Account Credentials"
-    msg["From"] = os.getenv("SMTP_FROM", "skygrid@example.com")
+    msg["Subject"] = "Your MargDarshak Account Credentials"
+    msg["From"] = os.getenv("SMTP_FROM", "margdarshak@example.com")
     msg["To"] = email
     msg.set_content(
-        "Welcome to SkyGrid.\n\n"
+        "Welcome to MargDarshak.\n\n"
         f"Username:\n{username}\n\n"
         f"Temporary Password:\n{password}\n\n"
         "Please change your password after first login."
@@ -388,6 +367,12 @@ def get_next_incident_id() -> str:
             except Exception:
                 pass
     return f"INC_{max_num + 1:03d}"
+
+
+def kick_user_sessions(user_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.commit()
 
 
 init_db()

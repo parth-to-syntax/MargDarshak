@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Route, ShieldCheck, Siren } from 'lucide-react'
 import { Button } from '../components/ui/button'
@@ -9,6 +9,13 @@ export default function LandingPage() {
   const [form, setForm] = useState({ username: 'admin', password: 'admin123' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('kicked') === 'true') {
+      setError("You've been logged out because your account was accessed from another location.")
+    }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,7 +31,7 @@ export default function LandingPage() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Login failed')
-      localStorage.setItem('SKYGRID_USER', JSON.stringify(data.user))
+      localStorage.setItem('MARGDARSHAK_USER', JSON.stringify(data.user))
       navigate('/dashboard')
     } catch (err) {
       setError(err.message || 'Login failed')
@@ -37,7 +44,7 @@ export default function LandingPage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-white via-blue-50 to-slate-100 text-slate-900">
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8">
         <header className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/80 px-4 py-3 shadow-md backdrop-blur-md sm:px-6">
-          <div className="text-base font-semibold tracking-tight text-blue-700">SkyGrid</div>
+          <div className="text-base font-semibold tracking-tight text-blue-700">MargDarshak</div>
           <div className="text-sm text-slate-500">Secure operations access</div>
         </header>
 

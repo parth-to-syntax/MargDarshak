@@ -15,13 +15,13 @@ export default function ProfileSettings() {
 
   const storedUser = (() => {
     try {
-      return JSON.parse(localStorage.getItem('SKYGRID_USER') || '{}')
+      return JSON.parse(localStorage.getItem('MARGDARSHAK_USER') || '{}')
     } catch {
       return {}
     }
   })()
   const userName = storedUser?.display_name || storedUser?.username || storedUser?.email?.split('@')?.[0] || 'City Operator'
-  const userEmail = storedUser?.email || 'ops@skygrid.city'
+  const userEmail = storedUser?.email || 'ops@margdarshak.city'
   const userRole = storedUser?.role || 'officer'
   const isAdmin = userRole === 'admin'
   const initials = userName
@@ -32,9 +32,9 @@ export default function ProfileSettings() {
     .join('') || 'CO'
 
   const [form, setForm] = useState({
-    apiBaseUrl: localStorage.getItem('SKYGRID_API_BASE_URL') || API_BASE_URL,
-    groqApiKey: localStorage.getItem('SKYGRID_GROQ_API_KEY') || '',
-    twitterApiKey: localStorage.getItem('SKYGRID_TWITTER_API_KEY') || '',
+    apiBaseUrl: localStorage.getItem('MARGDARSHAK_API_BASE_URL') || API_BASE_URL,
+    groqApiKey: localStorage.getItem('MARGDARSHAK_GROQ_API_KEY') || '',
+    twitterApiKey: localStorage.getItem('MARGDARSHAK_TWITTER_API_KEY') || '',
   })
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function ProfileSettings() {
         const response = await fetch(`${API_BASE_URL}/me`, { credentials: 'include' })
         const data = await response.json().catch(() => ({}))
         if (!cancelled && response.ok && data?.user) {
-          localStorage.setItem('SKYGRID_USER', JSON.stringify(data.user))
+          localStorage.setItem('MARGDARSHAK_USER', JSON.stringify(data.user))
         }
       } catch {
         // Keep the last known profile snapshot when the backend is temporarily unavailable.
@@ -127,9 +127,9 @@ export default function ProfileSettings() {
   }
 
   const saveSettings = () => {
-    localStorage.setItem('SKYGRID_API_BASE_URL', form.apiBaseUrl.trim())
-    localStorage.setItem('SKYGRID_GROQ_API_KEY', form.groqApiKey.trim())
-    localStorage.setItem('SKYGRID_TWITTER_API_KEY', form.twitterApiKey.trim())
+    localStorage.setItem('MARGDARSHAK_API_BASE_URL', form.apiBaseUrl.trim())
+    localStorage.setItem('MARGDARSHAK_GROQ_API_KEY', form.groqApiKey.trim())
+    localStorage.setItem('MARGDARSHAK_TWITTER_API_KEY', form.twitterApiKey.trim())
     setOpen(false)
     setPanel('profile')
     window.location.reload()
@@ -173,7 +173,7 @@ export default function ProfileSettings() {
     try {
       await fetch(`${API_BASE_URL}/logout`, { method: 'POST', credentials: 'include' })
     } catch {}
-    localStorage.removeItem('SKYGRID_USER')
+    localStorage.removeItem('MARGDARSHAK_USER')
     setOpen(false)
     setPanel('profile')
     window.location.href = '/'

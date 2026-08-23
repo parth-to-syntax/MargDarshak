@@ -11,8 +11,8 @@ import pandas as pd
 from router import find_diversion_routes, build_live_graph
 from auth import save_incident, add_incident_log
 
-load_dotenv()
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+load_dotenv(override=True)
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound-mini")
 _groq_key = (os.getenv("GROQ_API_KEY") or "").strip()
 
 
@@ -257,6 +257,8 @@ class IncidentCoPilot:
     def resolve_incident(self, incident_id: str, seg_id: str):
         with self._lock:
             self._routes_per_incident.pop(incident_id, None)
+            self._ai_per_incident.pop(incident_id, None)
+            self._debug_per_incident.pop(incident_id, None)
 
     def get_last_ai(self, incident_id: str | None = None) -> dict | None:
         """Return AI output for a specific incident, or the active one if no id given."""
@@ -283,26 +285,6 @@ class IncidentCoPilot:
             if not iid and self._debug_per_incident:
                 iid = list(self._debug_per_incident.keys())[-1]
             return list(self._debug_per_incident.get(iid, [])) if iid else []
-
-    def start_periodic_refresh(self, get_latest_frame_df_func):
-        def _tick():
-            try:
-                from auth import load_incidents
-                active_incidents = [i for i in load_incidents() if i.get("status") == "ACTIVE"]
-                frame_df = get_latest_frame_df_func()
-                if frame_df is not None:
-                    for inc in active_incidents:
-                        self._run_analysis(inc, frame_df)
-            except Exception as e:
-                print(f"[copilot] periodic refresh error: {e}")
-            
-            self._timer = threading.Timer(30, _tick)
-            self._timer.daemon = True
-            self._timer.start()
-
-        self._timer = threading.Timer(30, _tick)
-        self._timer.daemon = True
-        self._timer.start()
 
     def chat(self, officer_message: str) -> str:
         """Multi-turn officer Q&A with full incident context injected."""
@@ -357,6 +339,8 @@ class IncidentCoPilot:
 
     def _run_analysis(self, incident: dict, frame_df: pd.DataFrame):
         try:
+            with self._lock:
+                self._active_incident = incident
             incident_id = incident["id"]
             print(f"ROUTING STARTED: {incident_id}")
             add_incident_log(incident_id, f"Routing started for {incident_id}")
@@ -365,17 +349,29 @@ class IncidentCoPilot:
             elapsed = round((datetime.now() - start).total_seconds() / 60)
 
             try:
-                G_live = build_live_graph(self.G_base, frame_df, incident=incident)
+                from auth import load_incidents
+                active_incidents = [i for i in load_incidents() if i.get("status") == "ACTIVE"]
+                if not any(i["id"] == incident["id"] for i in active_incidents):
+                    active_incidents.append(incident)
+                G_live = build_live_graph(self.G_base, frame_df, active_incidents=active_incidents)
             except Exception as e:
                 print(f"[copilot] build_live_graph failed: {e}")
                 add_incident_log(incident_id, f"A* routing failed for {incident_id}")
                 return
 
             try:
+                dest_lat = float(incident.get("seg_end_lat") or incident.get("lat") or 23.240)
+                dest_lng = float(incident.get("seg_end_lng") or incident.get("lng") or 72.660)
+                
+                # If destination is identical to origin, use a default city center destination for detour
+                if abs(dest_lat - float(incident["lat"])) < 0.0001 and abs(dest_lng - float(incident["lng"])) < 0.0001:
+                    dest_lat = 23.240
+                    dest_lng = 72.660
+
                 routes, route_debug = find_diversion_routes(
                     self.G_base,
                     float(incident["lat"]), float(incident["lng"]),
-                    float(incident["seg_end_lat"]), float(incident["seg_end_lng"]),
+                    dest_lat, dest_lng,
                     incident=incident,
                     k=3,
                 )
@@ -396,6 +392,15 @@ class IncidentCoPilot:
             else:
                 add_incident_log(incident_id, f"A* routing failed to find path for {incident_id}")
 
+            # Save routing results to cache immediately so frontend maps can render routes
+            with self._lock:
+                self._routes_per_incident[incident_id] = routes
+                ts = datetime.now().strftime("%H:%M:%S")
+                self._debug_per_incident[incident_id] = (
+                    [f"[RUN]    Analysis at {ts}"] +
+                    route_debug
+                )
+
             print(f"AI ANALYSIS STARTED: {incident_id}")
             messages = build_incident_prompt(incident, routes, frame_df, elapsed)
             try:
@@ -406,25 +411,18 @@ class IncidentCoPilot:
                     json_output=True,
                 )
                 ai_output = _parse_llm_response(llm_raw)
+                with self._lock:
+                    self._ai_per_incident[incident_id] = ai_output
+                    ts = datetime.now().strftime("%H:%M:%S")
+                    llm_debug = [
+                        f"[LLM]    Model: {GROQ_MODEL} | temp=0.15 | max_tokens=900",
+                        f"[LLM]    Incident: {incident['type']} on {incident['location']}",
+                        f"[LLM]    signal_retiming: {ai_output.get('signal_retiming', '')[:80]}...",
+                        f"[LLM]    diversion_route: {ai_output.get('diversion_route', '')[:80]}...",
+                    ]
+                    self._debug_per_incident[incident_id].extend(llm_debug)
             except Exception as e:
                 print(f"[copilot] Groq call failed: {e}")
-                return
-
-            with self._lock:
-                self._ai_per_incident[incident_id] = ai_output
-                self._routes_per_incident[incident_id] = routes
-                ts = datetime.now().strftime("%H:%M:%S")
-                llm_debug = [
-                    f"[LLM]    Model: {GROQ_MODEL} | temp=0.15 | max_tokens=900",
-                    f"[LLM]    Incident: {incident['type']} on {incident['location']}",
-                    f"[LLM]    signal_retiming: {ai_output.get('signal_retiming', '')[:80]}...",
-                    f"[LLM]    diversion_route: {ai_output.get('diversion_route', '')[:80]}...",
-                ]
-                self._debug_per_incident[incident_id] = (
-                    [f"[RUN]    Analysis at {ts}"] +
-                    route_debug +
-                    llm_debug
-                )
 
         except Exception as e:
             print(f"[copilot] Unhandled error in _run_analysis: {e}")

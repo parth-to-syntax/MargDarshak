@@ -58,7 +58,7 @@ export default function PlaybackBar({
           color={incidentCount > 0 ? 'var(--red)' : 'var(--green)'} />
         <Metric label="CONGESTED" value={congestedCount}
           color={congestedCount > 20 ? 'var(--amber)' : 'var(--text)'} />
-        <Metric label="AVG SPEED" value={`${avgSpeed} km/h`} />
+        <Metric label="NETWORK HEALTH" value={`${avgSpeed}%`} />
 
         {/* Phase badge */}
         <div style={{
