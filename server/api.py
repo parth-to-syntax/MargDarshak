@@ -78,7 +78,14 @@ async def auth_middleware(request: Request, call_next):
     token = request.cookies.get("margdarshak_session")
     user = get_user_from_session(token)
     if not user:
-        return JSONResponse(status_code=401, content={"detail": "not_authenticated"})
+        response = JSONResponse(status_code=401, content={"detail": "not_authenticated"})
+        origin = request.headers.get("origin")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        allowed = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", frontend_url]
+        if origin in allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
     request.state.user = user
     return await call_next(request)
 
