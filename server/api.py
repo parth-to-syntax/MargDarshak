@@ -281,7 +281,7 @@ def login(payload: LoginPayload, response: Response):
     # kick_user_sessions(user["id"])
 
     token = create_session(user["id"])
-    response.set_cookie(key="margdarshak_session", value=token, httponly=True, samesite="lax", max_age=60 * 60 * 8)
+    response.set_cookie(key="margdarshak_session", value=token, httponly=True, samesite="none", secure=True, max_age=60 * 60 * 8)
     return {"ok": True, "user": user, "token": token}
 
 
@@ -289,7 +289,7 @@ def login(payload: LoginPayload, response: Response):
 def logout(request: Request, response: Response):
     token = request.cookies.get("margdarshak_session")
     delete_session(token)
-    response.delete_cookie("margdarshak_session")
+    response.delete_cookie("margdarshak_session", samesite="none", secure=True)
     return {"ok": True}
 
 
