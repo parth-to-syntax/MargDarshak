@@ -13,6 +13,7 @@ import shutil
 import sys
 from pathlib import Path
 from groq import Groq
+from mangum import Mangum
 
 from router  import load_graph, build_live_graph, find_diversion_routes
 from copilot import IncidentCoPilot
@@ -993,3 +994,4 @@ def debug_log(incident_id: str | None = None):
         "log": log,
         "line_count": len(log),
     }
+handler = Mangum(app)

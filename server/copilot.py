@@ -501,6 +501,12 @@ class IncidentCoPilot:
                     json_output=True,
                 )
                 ai_output = _parse_llm_response(llm_raw)
+            except Exception as e:
+                print(f"[copilot] Groq call failed: {e}")
+                # Fix: Provide the fallback dictionary directly instead of skipping
+                ai_output = _parse_llm_response("")
+            
+            try:
                 ai_output_str = json.dumps(ai_output)
                 self._redis_set(f"margdarshak:ai:{incident_id}", ai_output_str, REDIS_AI_TTL)
                 with self._lock:
@@ -514,7 +520,7 @@ class IncidentCoPilot:
                     ]
                     self._debug_per_incident[incident_id].extend(llm_debug)
             except Exception as e:
-                print(f"[copilot] Groq call failed: {e}")
+                print(f"[copilot] Failed to cache AI output: {e}")
 
         except Exception as e:
             print(f"[copilot] Unhandled error in _run_analysis: {e}")
