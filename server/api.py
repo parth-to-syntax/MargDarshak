@@ -58,9 +58,10 @@ groq_client = _make_groq_client()
 # ── App ───────────────────────────────────────────────────────────
 app = FastAPI(title="MargDarshak — Gandhinagar Traffic Co-Pilot")
 
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
