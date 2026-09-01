@@ -652,6 +652,7 @@ export default function Dashboard() {
 
   function clearChat() {
     setMessages([])
+    setIsTyping(false)
     localStorage.removeItem(CHAT_STORAGE_KEY)
   }
 

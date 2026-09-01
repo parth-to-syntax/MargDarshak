@@ -202,7 +202,7 @@ class IncidentCoPilot:
         self._debug_per_incident:  dict = {}    # id -> list of debug log strings (RAM only)
         self.narrative_log    = []              # list of {time, narrative, routes}
         self._chat_history    = []
-        self._lock            = threading.Lock()
+        self._lock            = threading.RLock()
         self._timer           = None
 
     # Properties to maintain backwards compatibility with process-local RAM cache checks
