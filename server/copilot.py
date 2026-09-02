@@ -256,18 +256,23 @@ class IncidentCoPilot:
         """
         channel_guidance = ""
         if channel == "police":
-            channel_guidance = "This is Police Dispatch. We handle accident reports and law enforcement events. Map to type: ACCIDENT or ROAD_CLOSED. Severity: 3 (High)."
+            channel_guidance = "This is Police Dispatch. We handle accident reports and law enforcement events. Map to type: ACCIDENT or ROAD_CLOSED."
         elif channel == "fire":
-            channel_guidance = "This is Fire & Rescue. We handle fires, hazards, and rescue situations. Map to type: ROAD_CLOSED or ACCIDENT. Severity: 3 (High)."
+            channel_guidance = "This is Fire & Rescue. We handle fires, hazards, and rescue situations. Map to type: ROAD_CLOSED or ACCIDENT."
         elif channel == "ems":
-            channel_guidance = "This is Medical / EMS. We handle medical emergencies and ambulance routing. Map to type: ACCIDENT. Severity: 3 (High)."
+            channel_guidance = "This is Medical / EMS. We handle medical emergencies and ambulance routing. Map to type: ACCIDENT."
         elif channel == "traffic":
-            channel_guidance = "This is Traffic Control. We handle congestion, blockages, and signals. Map to type: CONGESTION or ROAD_CLOSED. Severity: 2 (Medium) or 1 (Low)."
+            channel_guidance = "This is Traffic Control. We handle congestion, blockages, and signals. Map to type: CONGESTION or ROAD_CLOSED."
 
         prompt = f"""
         You are a dispatch processor for Gandhinagar Traffic.
         {channel_guidance}
         Extract the street name, incident type, and severity from this radio transcript.
+        
+        For severity, listen closely to the transcript:
+        - Output 3 if it mentions "high", "major", "severe", or "critical".
+        - Output 2 if it mentions "medium", "moderate", or "average".
+        - Output 1 if it mentions "low", "minor", or if no severity is mentioned.
         
         Transcript: "{text}"
         

@@ -121,9 +121,9 @@ body {
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-family: 'Inter', 'Segoe UI', sans-serif;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 700;
   color: #2563eb;
   margin-right: 32px;

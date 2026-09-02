@@ -254,6 +254,7 @@ class IncidentTrigger(BaseModel):
     seg_end_lat: float
     seg_end_lng: float
     incident_type: str = "ACCIDENT"
+    severity: int = 3
 
 class VoiceReport(BaseModel):
     text: str
@@ -440,7 +441,7 @@ def _trigger_voice_incident_from_text(text: str, channel: str):
 
     with state_lock:
         inc_id = get_next_incident_id()
-        severity = int(extracted.get("severity") or 3)
+        severity = int(extracted.get("severity") or 1)
         incident = {
             "id":       inc_id,
             "seg_id":   meta["seg_id"],
@@ -537,8 +538,8 @@ def trigger_manual_incident(payload: IncidentTrigger):
             "location": payload.street_name,
             "direction": "",
             "type":     payload.incident_type,
-            "severity": 3,
-            "speed":    calculate_incident_speed({"type": payload.incident_type, "severity": 3, "status": "ACTIVE"}),
+            "severity": payload.severity,
+            "speed":    calculate_incident_speed({"type": payload.incident_type, "severity": payload.severity, "status": "ACTIVE"}),
             "time":     datetime.now().strftime("%H:%M:%S"),
             "status":   "ACTIVE",
             "lat":      payload.lat,

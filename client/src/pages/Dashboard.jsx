@@ -121,8 +121,8 @@ function SeverityBars({ speed, freeFlow }) {
 
 function IncidentCard({ inc, onAck, nearestHospital, nearestFireStation }) {
   if (!inc) return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-      <div className="text-lg font-semibold text-slate-800">Incident Status</div>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md">
+      <div className="text-lg font-semibold text-[var(--text)]">Incident Status</div>
       <div style={{ color: 'var(--green)', fontFamily: 'var(--mono)', fontSize: 13, marginTop: 8 }}>
         <span className="dot dot-green" style={{ marginRight: 6 }}></span>
         NO ACTIVE INCIDENT
@@ -132,14 +132,13 @@ function IncidentCard({ inc, onAck, nearestHospital, nearestFireStation }) {
   )
 
   const isConstruction = inc.type === 'ROAD_CLOSED'
-  const hash = Array.from(inc.id || '').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  const friendlyName = isConstruction ? 'Construction' : (hash % 2 === 0 ? 'Car Crash' : 'Truck Crash')
+  const friendlyName = isConstruction ? 'Construction' : 'Accident'
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-lg">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md transition-all duration-200 hover:shadow-lg">
       <div className="badge badge-red" style={{ fontSize: 10 }}>INCIDENT ACTIVE</div>
       <div className="mt-2 text-xl font-bold text-red-700">{friendlyName}</div>
-      <div className="mt-1 text-base font-medium text-slate-800">{inc.location}</div>
+      <div className="mt-1 text-base font-medium text-[var(--text)]">{inc.location}</div>
       <div className="inc-time mono" style={{ marginTop: 2 }}>{inc.time}</div>
       <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" 
            style={{ backgroundColor: inc.severity === 'high' ? '#fee2e2' : '#ffedd5', color: inc.severity === 'high' ? '#b91c1c' : '#c2410c' }}>
@@ -191,8 +190,8 @@ function RoadFeed({ segments }) {
     .slice(0, 10)
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-lg">
-      <div className="text-lg font-semibold text-slate-800">Top Congested Roads</div>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md transition-all duration-200 hover:shadow-lg">
+      <div className="text-lg font-semibold text-[var(--text)]">Top Congested Roads</div>
       <div className="mt-1 text-sm text-slate-500">Live congestion ranking</div>
       <div className="mt-2 transition-all duration-300">
         {roads.map(({ name, seg }) => {
@@ -202,7 +201,7 @@ function RoadFeed({ segments }) {
           return (
             <div key={name} className="road-row" style={{ padding: '10px 0', borderBottom: '1px solid #e5e7eb' }}>
               <SpeedDot color={color} />
-              <span className="road-name text-slate-900" style={{ textAlign: 'left' }}>{name}</span>
+              <span className="road-name text-[var(--text)]" style={{ textAlign: 'left' }}>{name}</span>
               <span className="road-speed" style={{ color, minWidth: 84, textAlign: 'right', fontWeight: 'bold' }}>
                 {congestionText}
               </span>
@@ -217,8 +216,8 @@ function RoadFeed({ segments }) {
 function DiversionList({ diversions }) {
   if (!diversions || diversions.length === 0) return null
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-      <div className="text-lg font-semibold text-slate-800">Active Diversions</div>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md">
+      <div className="text-lg font-semibold text-[var(--text)]">Active Diversions</div>
       <div className="mt-3 space-y-2">
         {diversions.map((d, i) => (
           <div key={i} className="flex items-start gap-2 rounded-lg border border-pink-100 bg-pink-50 px-3 py-2 text-sm font-medium text-pink-700">
@@ -317,23 +316,23 @@ function InsightsBar({ insights }) {
 
   return (
     <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-        <div className="text-lg font-semibold text-slate-800">Signal Retiming</div>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-slate-600">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md">
+        <div className="text-lg font-semibold text-[var(--text)]">Signal Retiming</div>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-[var(--text3)]">
           {signalBullets.map((item, idx) => <li key={`signal-${idx}`}>{item}</li>)}
         </ul>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-        <div className="text-lg font-semibold text-slate-800">Diversion Plan</div>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-slate-600">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md">
+        <div className="text-lg font-semibold text-[var(--text)]">Diversion Plan</div>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-[var(--text3)]">
           {diversionBullets.map((item, idx) => <li key={`diversion-${idx}`}>{item}</li>)}
         </ul>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-        <div className="text-lg font-semibold text-slate-800">Incident Narrative</div>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-slate-600">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-5 shadow-md">
+        <div className="text-lg font-semibold text-[var(--text)]">Incident Narrative</div>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-base text-[var(--text3)]">
           {narrativeBullets.map((item, idx) => <li key={`narrative-${idx}`}>{item}</li>)}
         </ul>
       </div>
@@ -402,6 +401,7 @@ export default function Dashboard() {
   const [isListening, setIsListening] = useState(false)
   const [pendingSegment, setPendingSegment] = useState(null)
   const [incidentType, setIncidentType] = useState('ACCIDENT')
+  const [incidentSeverity, setIncidentSeverity] = useState(3)
   const messagesEndRef = useRef(null)
 
   // Support multiple incidents
@@ -592,6 +592,7 @@ export default function Dashboard() {
           seg_end_lat: endLat,
           seg_end_lng: endLng,
           incident_type: incidentType,
+          severity: Number(incidentSeverity),
         })
       })
 
@@ -678,7 +679,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', letterSpacing: 0.5 }}>ACTIVE INCIDENTS</div>
               {incidents.length === 0 ? (
-                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-center">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-sm text-center">
                   <div style={{ color: '#22c55e', fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600 }}>
                     <span className="dot dot-green" style={{ marginRight: 6 }}></span>
                     NO ACTIVE INCIDENTS
@@ -689,8 +690,7 @@ export default function Dashboard() {
                 incidents.map((inc) => {
                   const isSelected = selectedIncidentId === inc.id || (!selectedIncidentId && incidents[0]?.id === inc.id)
                   const isConstruction = inc.type === 'ROAD_CLOSED'
-                  const hash = Array.from(inc.id || '').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-                  const friendlyName = isConstruction ? 'ROAD CLOSED' : (hash % 2 === 0 ? 'CAR CRASH' : 'TRUCK CRASH')
+                  const friendlyName = isConstruction ? 'ROAD CLOSED' : 'ACCIDENT'
                   const severityText = inc.severity >= 3 ? 'High' : inc.severity === 2 ? 'Medium' : 'Low'
                   const borderColors = inc.severity >= 3 ? '#ef4444' : inc.severity === 2 ? '#f97316' : '#22c55e'
                   const bgColors = inc.severity >= 3 ? '#fef2f2' : inc.severity === 2 ? '#fff7ed' : '#f0fdf4'
@@ -752,10 +752,10 @@ export default function Dashboard() {
             </div>
 
             {/* System Logs / Timeline */}
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" style={{ display: 'flex', flexDirection: 'column', minHeight: 180, maxHeight: 220 }}>
-              <div className="text-sm font-bold text-slate-800">System Logs</div>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-sm" style={{ display: 'flex', flexDirection: 'column', minHeight: 180, maxHeight: 220 }}>
+              <div className="text-sm font-bold text-[var(--text)]">System Logs</div>
               <div className="mt-1 text-xs text-slate-500">Persistent incident lifecycle history</div>
-              <div className="mt-2 space-y-1.5 overflow-y-auto flex-1 text-xs text-slate-600 font-mono" style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+              <div className="mt-2 space-y-1.5 overflow-y-auto flex-1 text-xs text-[var(--text3)] font-mono" style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
                 {systemLogs.length === 0 ? (
                   <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>No logs recorded.</div>
                 ) : (
@@ -774,7 +774,7 @@ export default function Dashboard() {
           </div>
 
           <div className='main-area' style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-            <div className='map-container rounded-xl border border-gray-200 bg-white shadow-md' style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+            <div className='map-container rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-md' style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
               <MapView
                 segments={currentFrame || []}
                 incident={activeIncident}
@@ -869,16 +869,16 @@ export default function Dashboard() {
       </div>
       {pendingSegment && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl">
             <div className="flex items-center gap-3 text-red-600">
               <AlertTriangle size={24} className="animate-pulse" />
-              <h3 className="text-xl font-bold text-slate-900">Trigger Incident?</h3>
+              <h3 className="text-xl font-bold text-[var(--text)]">Trigger Incident?</h3>
             </div>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 text-sm text-[var(--text3)]">
               You are about to report a traffic incident on:
             </p>
             <div className="mt-2 rounded-lg bg-slate-50 p-3 border border-slate-100">
-              <div className="text-sm font-semibold text-slate-800">{pendingSegment.street_name || 'Unnamed Segment'}</div>
+              <div className="text-sm font-semibold text-[var(--text)]">{pendingSegment.street_name || 'Unnamed Segment'}</div>
               <div className="text-xs text-slate-500 mt-0.5">Segment ID: {pendingSegment.seg_id}</div>
               <div className="text-xs text-slate-500">Live Congestion: {Number(pendingSegment.speed || 0) < 20 ? 'Severe' : Number(pendingSegment.speed || 0) <= 40 ? 'Moderate' : 'Light'}</div>
             </div>
@@ -888,10 +888,23 @@ export default function Dashboard() {
               <select
                 value={incidentType}
                 onChange={(e) => setIncidentType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="ACCIDENT">Accident / Car Crash</option>
                 <option value="ROAD_CLOSED">Road Closed / Construction</option>
+              </select>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Severity</label>
+              <select
+                value={incidentSeverity}
+                onChange={(e) => setIncidentSeverity(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value={3}>High Severity</option>
+                <option value={2}>Medium Severity</option>
+                <option value={1}>Low Severity</option>
               </select>
             </div>
 
@@ -908,7 +921,7 @@ export default function Dashboard() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm font-medium text-[var(--text2)] hover:bg-slate-50 transition-colors"
                 onClick={() => setPendingSegment(null)}
               >
                 Cancel

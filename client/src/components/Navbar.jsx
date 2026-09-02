@@ -16,14 +16,14 @@ export default function Navbar({ feedActive }) {
 
   return (
     <nav className="navbar relative z-[9000] overflow-visible">
-      <Link to="/" className="nav-brand">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <div className="nav-brand cursor-default">
+        <svg width="24" height="24" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" stroke="#0ea5e9" strokeWidth="1.5"/>
           <path d="M5 9h8M9 5v8" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
         MargDarshak
         <span className="city">| Gandhinagar</span>
-      </Link>
+      </div>
 
       <div className="nav-links">
         <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>

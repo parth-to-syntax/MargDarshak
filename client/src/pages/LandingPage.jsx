@@ -41,11 +41,26 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-white via-blue-50 to-slate-100 text-slate-900">
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8">
-        <header className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/80 px-4 py-3 shadow-md backdrop-blur-md sm:px-6">
-          <div className="text-base font-semibold tracking-tight text-blue-700">MargDarshak</div>
-          <div className="text-sm text-slate-500">Secure operations access</div>
+    <div 
+      className="relative min-h-screen overflow-hidden text-slate-900 font-sans"
+      style={{ 
+        backgroundImage: "url('/map-bg.jpg')", 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px]"></div>
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8">
+        <header className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/90 px-5 py-4 shadow-md backdrop-blur-md sm:px-6">
+          <div className="flex items-center gap-3 text-3xl font-bold tracking-tight text-blue-600">
+            <svg width="36" height="36" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="8" stroke="#0ea5e9" strokeWidth="1.5"/>
+              <path d="M5 9h8M9 5v8" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            MargDarshak
+          </div>
+          <div className="text-sm font-medium text-slate-500">Secure operations access</div>
         </header>
 
         <section className="relative grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1.0fr_0.9fr] lg:py-16">
@@ -92,10 +107,6 @@ export default function LandingPage() {
                   <div className="mt-1 text-xl font-semibold text-slate-900">Shared simulation state</div>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-md">
-                  <div className="text-sm text-slate-600">Playback</div>
-                  <div className="mt-1 text-xl font-semibold text-slate-900">Server-controlled timeline</div>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-md">
                   <div className="text-sm text-slate-600">User Access</div>
                   <div className="mt-1 text-xl font-semibold text-slate-900">Admin and officer roles</div>
                 </div>
@@ -104,20 +115,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="grid gap-6 sm:grid-cols-3">
+        <section className="grid gap-6 sm:grid-cols-2">
           <article className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-md">
             <div className="p-5">
               <ShieldCheck className="h-6 w-6 text-blue-600" />
               <h2 className="mt-3 text-2xl font-semibold text-slate-900">Incident Intelligence</h2>
               <p className="mt-2 text-base leading-relaxed text-slate-600">AI narratives and action plans generated from live simulation context.</p>
-            </div>
-          </article>
-
-          <article className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-md">
-            <div className="p-5">
-              <Route className="h-6 w-6 text-blue-600" />
-              <h2 className="mt-3 text-2xl font-semibold text-slate-900">Shared Operations</h2>
-              <p className="mt-2 text-base leading-relaxed text-slate-600">Playback and incidents are now coordinated through the backend.</p>
             </div>
           </article>
 
