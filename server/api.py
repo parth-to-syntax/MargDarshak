@@ -886,7 +886,7 @@ def get_diversion(incident_id: str):
     }
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok", "total_timestamps": TOTAL}
 
