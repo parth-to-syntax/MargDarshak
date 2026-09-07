@@ -2,8 +2,8 @@ name: Render Keep-Alive Cronjob
 
 on:
   schedule:
-    # Runs every 14 minutes to prevent the Render instance from sleeping
-    - cron: '*/14 * * * *'
+    # Runs every 10 minutes to prevent the Render instance from sleeping
+    - cron: '*/10 * * * *'
   # Allows you to trigger the workflow manually from the GitHub Actions tab
   workflow_dispatch: 
 
